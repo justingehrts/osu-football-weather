@@ -1,6 +1,6 @@
 # Milestone 1: are the sample sizes workable?
 
-_Generated 2026-10-27 19:43 UTC._
+_Generated 2026-10-27 19:50 UTC._
 
 **How to read this.** *n* is the number of games in that weather bin. Deltas are the team's result in that bin minus the team's own average over all its outdoor games with usable weather (positive = better than usual for points / yards, worse for turnovers). Bins with n below 5 show “—”; n 5-9 is **thin**; 10+ is solid. The *n ex-2020* column drops the COVID season.
 
@@ -11,7 +11,7 @@ _Generated 2026-10-27 19:43 UTC._
 | Ohio State | 133 | 9 | 2 | 1 |
 | USC | 131 | 6 | 3 | 2 |
 | Oregon | 132 | 7 | 3 | 1 |
-| Northwestern | 137 | 9 | 1 | 2 |
+| Northwestern | 136 | 9 | 1 | 2 |
 
 ## Ohio State
 
@@ -72,30 +72,30 @@ _Generated 2026-10-27 19:43 UTC._
 
 ## Northwestern
 
-143 completed games ingested · 137 outdoor with usable weather · 4 dome (excluded) · 0 missing weather · 2 too few observations · 1 usable games use a station >25 mi away · 9 games in COVID season(s)
+143 completed games ingested · 136 outdoor with usable weather · 4 dome (excluded) · 1 missing weather · 2 too few observations · 0 usable games use a station >25 mi away · 9 games in COVID season(s)
 
 | Bin | n | n ex-2020 | Confidence | Δ Pass yds/att | Δ Rush yds/carry | Δ Points | Δ Turnovers |
 |---|---|---|---|---|---|---|---|
-| wind: calm | 56 | 54 | solid | +0.04 | -0.06 | +0.23 | -0.03 |
-| wind: moderate | 47 | 45 | solid | +0.09 | -0.13 | -0.76 | +0.19 |
-| wind: windy | 34 | 30 | solid | -0.20 | +0.25 | +0.66 | -0.21 |
-| precip: none | 122 | 116 | solid | +0.02 | +0.02 | +0.01 | +0.03 |
-| precip: light | 12 | 10 | solid | +0.02 | -0.15 | +1.01 | -0.14 |
+| wind: calm | 56 | 54 | solid | +0.06 | -0.05 | +0.30 | -0.03 |
+| wind: moderate | 46 | 44 | solid | +0.06 | -0.14 | -0.90 | +0.20 |
+| wind: windy | 34 | 30 | solid | -0.18 | +0.26 | +0.73 | -0.21 |
+| precip: none | 121 | 115 | solid | +0.02 | +0.02 | +0.00 | +0.03 |
+| precip: light | 12 | 10 | solid | +0.04 | -0.15 | +1.07 | -0.14 |
 | precip: steady | 3 | 3 | suppressed | — | — | — | — |
 | snow: snow | 3 | 3 | suppressed | — | — | — | — |
-| snow: no_snow | 134 | 126 | solid | +0.01 | -0.01 | +0.09 | -0.01 |
-| temp: cold | 18 | 16 | solid | -0.33 | +0.28 | +0.17 | +0.08 |
-| temp: mild | 81 | 77 | solid | -0.01 | -0.06 | +0.23 | -0.10 |
-| temp: warm | 33 | 31 | solid | +0.30 | -0.05 | +0.02 | +0.16 |
-| temp: hot | 5 | 5 | thin | -0.91 | +0.17 | -4.56 | +0.33 |
+| snow: no_snow | 133 | 125 | solid | +0.01 | -0.01 | +0.08 | -0.01 |
+| temp: cold | 18 | 16 | solid | -0.31 | +0.29 | +0.24 | +0.08 |
+| temp: mild | 80 | 76 | solid | -0.03 | -0.06 | +0.19 | -0.10 |
+| temp: warm | 33 | 31 | solid | +0.32 | -0.05 | +0.09 | +0.16 |
+| temp: hot | 5 | 5 | thin | -0.90 | +0.17 | -4.50 | +0.32 |
 
 ## Venue / station flags
 
 | Venue | Dome | Station | Miles | Flags |
 |---|---|---|---|---|
-| Aviva Stadium (3504) |  | FVE | 2682.9 | suspicious coordinates (53.33523, -6.228447) -- outside lower 48; check; FAR STATION: 2682.9 mi (> 25) |
 | Lane Stadium (3799) |  | ROA | 25.3 | FAR STATION: 25.3 mi (> 25) |
 | Caesars Superdome (3493) | yes |  |  |  |
+| Aviva Stadium (3504) |  |  |  | outside lower 48 (53.33523, -6.228447) -- no US station used, no weather splits |
 | Alamodome (3604) | yes |  |  |  |
 | AT&T Stadium (3687) | yes |  |  |  |
 | Ford Field (3727) | yes |  |  |  |

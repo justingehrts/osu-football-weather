@@ -23,6 +23,14 @@ def read_coords(v):
     return None, None, None
 
 
+def prune_unusable_weather(conn):
+    """Drop stored weather for games whose venue is (now) a dome or has no station, so a
+    corrected venue record also corrects past results."""
+    conn.execute("""DELETE FROM weather_obs WHERE game_id IN (
+        SELECT g.game_id FROM games g JOIN venues v ON v.venue_id = g.venue_id
+        WHERE v.dome = 1 OR v.nearest_station IS NULL)""")
+
+
 def run(conn=None, client=None):
     conn = conn or connect()
     bins, overrides = load_bins(), load_yaml("venue_overrides.yaml")
@@ -43,7 +51,7 @@ def run(conn=None, client=None):
     for vid in ids:
         v = cfbd_venues.get(vid, {})
         o = overrides.get(vid) or overrides.get(str(vid)) or {}
-        notes = []
+        notes, abroad = [], False
         lat, lon, src = read_coords(v)
         if not v:
             notes.append("venue id not in CFBD /venues")
@@ -52,7 +60,8 @@ def run(conn=None, client=None):
         if lat is None:
             notes.append("NO COORDINATES")
         elif (lat, lon) == (0, 0) or not (US_BOX[0] <= lat <= US_BOX[1] and US_BOX[2] <= lon <= US_BOX[3]):
-            notes.append(f"suspicious coordinates ({lat}, {lon}) -- outside lower 48; check")
+            notes.append(f"outside lower 48 ({lat}, {lon}) -- no US station used, no weather splits")
+            abroad = True
         dome_raw = pick(v, "dome", default=None)
         if dome_raw is None and "dome" not in o:
             notes.append("CFBD gave no dome value (treated as outdoor)")
@@ -61,7 +70,8 @@ def run(conn=None, client=None):
             notes.append(o["note"])
 
         station = dist = far = None
-        if not dome and lat is not None:
+        # A US station for a venue overseas (e.g. Dublin) would be someone else's weather.
+        if not dome and lat is not None and not abroad:
             if o.get("station"):
                 st = next((s for s in catalog if s["id"] == o["station"]), None)
                 station = o["station"]
@@ -84,6 +94,7 @@ def run(conn=None, client=None):
                  coord_source=excluded.coord_source, notes=excluded.notes""",
             (vid, v.get("name"), lat, lon, dome, station,
              round(dist, 1) if dist is not None else None, far or 0, src, "; ".join(notes)))
+    prune_unusable_weather(conn)
     conn.commit()
     flagged = conn.execute("SELECT COUNT(*) FROM venues WHERE notes != ''").fetchone()[0]
     print(f"{len(ids)} venues processed, {flagged} with flags (see venues.notes).")
