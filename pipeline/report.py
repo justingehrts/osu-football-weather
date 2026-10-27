@@ -95,7 +95,7 @@ def build(conn, bins):
             "| Venue | Dome | Station | Miles | Flags |", "|---|---|---|---|---|"]
     for _, v in venues.iterrows():
         out.append(f"| {v['name']} ({v['venue_id']}) | {'yes' if v['dome'] else ''} | "
-                   f"{v['nearest_station'] or ''} | {'' if pd.isna(v['station_dist_mi']) else v['station_dist_mi']} "
+                   f"{'' if pd.isna(v['nearest_station']) else v['nearest_station']} | {'' if pd.isna(v['station_dist_mi']) else v['station_dist_mi']} "
                    f"| {v['notes']} |")
     return "\n".join(out) + "\n"
 

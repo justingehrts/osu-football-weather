@@ -73,7 +73,7 @@ def run(conn=None, client=None):
                 notes.append("no ASOS station found")
             elif dist is not None and dist > far_mi:
                 far = 1
-                notes.append(f"FAR STATION: {dist:.0f} mi (> {far_mi})")
+                notes.append(f"FAR STATION: {dist:.1f} mi (> {far_mi})")
         conn.execute(
             """INSERT INTO venues(venue_id,name,lat,lon,dome,nearest_station,station_dist_mi,
                                   station_far,coord_source,notes)

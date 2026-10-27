@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS team_games (
   PRIMARY KEY (game_id, team)
 );
 -- Never overwritten: every forecast pull is a new row (used from milestone 2).
+-- (+) Which team-seasons have been pulled in full. Needed because a team's rows can also be
+-- created while pulling ANOTHER team's schedule (e.g. Oregon-vs-Ohio State), which must not
+-- count as "Oregon's season is done".
+CREATE TABLE IF NOT EXISTS ingest_log (
+  team TEXT, season INTEGER, finished_utc TEXT, PRIMARY KEY (team, season)
+);
 CREATE TABLE IF NOT EXISTS forecast_snapshots (
   snapshot_utc TEXT, game_id INTEGER,
   wind_sust REAL, wind_gust REAL, precip_prob REAL, precip_amt REAL,

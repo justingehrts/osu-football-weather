@@ -112,3 +112,35 @@ def test_report_builds():
                      compute_splits.compute(compute_splits.usable_games(conn), BINS))
     text = report.build(conn, BINS)
     assert "## A" in text and "wind: windy" in text and "Venue / station flags" in text
+
+
+class _FakeClient:
+    """Two tracked teams; A-vs-B is game 1, B's other game is game 2 (B only has it if B's own
+    schedule is pulled)."""
+    def games(self, season, team, st):
+        if st != "regular" or season != 2019:
+            return []
+        g = {1: ("A", "B"), 2: ("B", "C")}
+        return [{"id": i, "week": i, "completed": True, "homeTeam": h, "awayTeam": a, "venueId": 1,
+                 "startDate": "2019-09-01T17:00:00Z"} for i, (h, a) in g.items() if team in (h, a)]
+
+    def game_team_stats(self, season, team, st):
+        if st != "regular" or season != 2019:
+            return []
+        g = {1: ("A", "B"), 2: ("B", "C")}
+        return [{"id": i, "teams": [{"school": h, "homeAway": "home", "points": 1, "stats": []},
+                                    {"school": a, "homeAway": "away", "points": 0, "stats": []}]}
+                for i, (h, a) in g.items() if team in (h, a)]
+
+    def ppa_games(self, season, team):
+        return []
+
+
+def test_second_team_not_skipped_when_first_team_created_its_rows(monkeypatch):
+    # Regression: B already has game 1 (created while pulling A) but its season isn't done.
+    monkeypatch.setattr(ingest_games, "tracked_teams", lambda: ["A", "B"])
+    monkeypatch.setattr(ingest_games, "load_yaml", lambda n: {"first_season": 2019})
+    monkeypatch.setattr(ingest_games, "current_season", lambda: 2026)
+    conn = connect(":memory:")
+    ingest_games.run(conn, _FakeClient())
+    assert conn.execute("SELECT COUNT(*) FROM team_games WHERE team='B'").fetchone()[0] == 2

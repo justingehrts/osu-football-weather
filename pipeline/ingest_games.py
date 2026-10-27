@@ -54,10 +54,9 @@ def run(conn=None, client=None, seasons=None, full=False):
 
     for team in teams:
         for season in seasons:
+            # Finished past seasons are pulled once; the current season is always refreshed.
             if not full and season < now and conn.execute(
-                    """SELECT COUNT(*) FROM team_games tg JOIN games g USING(game_id)
-                       WHERE tg.team=? AND g.season=? AND g.completed=1""",
-                    (team, season)).fetchone()[0] >= 1:
+                    "SELECT 1 FROM ingest_log WHERE team=? AND season=?", (team, season)).fetchone():
                 continue
             for st in SEASON_TYPES:
                 for g in client.games(season, team, st):
@@ -104,6 +103,7 @@ def run(conn=None, client=None, seasons=None, full=False):
                                      (off, gid, team))
             except Exception as e:  # noqa: BLE001 - PPA is a nice-to-have, never block ingest
                 print(f"  (PPA skipped for {team} {season}: {e})")
+            conn.execute("INSERT OR REPLACE INTO ingest_log VALUES (?,?,datetime('now'))", (team, season))
             conn.commit()
             print(f"{team} {season}: ok")
 

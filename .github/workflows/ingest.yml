@@ -5,7 +5,7 @@ name: Incremental data ingest
 on:
   push:                       # TEMPORARY: first real run on the review branch; remove before merge
     branches: [claude/sleepy-noether-tbnm6j]
-    paths: [".github/workflows/ingest.yml"]
+    paths: [".github/workflows/ingest.yml", "pipeline/**"]
   schedule:
     - cron: "17 9 * * 1"        # weekly, Mondays ~5:17 AM Eastern, all year
     - cron: "43 9 * 8-12 *"     # daily, August through December (football season)
