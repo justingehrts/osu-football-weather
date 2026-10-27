@@ -17,3 +17,10 @@ confidence:
   suppress_below_n: 5
   thin_below_n: 10
 game_window_hours: 3.5
+
+# --- added in milestone 1 (pipeline quality rules) ---
+quality:
+  far_station_miles: 25      # flag venues whose nearest ASOS is farther than this
+  min_obs_in_window: 3       # fewer observations than this => weather not trusted
+flags:
+  covid_seasons: [2020]      # kept in the data, but filterable

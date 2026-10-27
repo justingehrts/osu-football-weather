@@ -1,0 +1,9 @@
+# Which teams the pipeline tracks. Names must match CollegeFootballData
+# ("school") spelling exactly, e.g. "Ohio State", "Michigan".
+focal_team: Ohio State
+first_season: 2015
+next_opponents: 3        # how many upcoming opponents to track
+
+# Extra teams to track by hand (optional). The auto-resolved opponents live
+# in config/opponents.yaml, which is generated -- do not hand-edit that one.
+extra_teams: []
