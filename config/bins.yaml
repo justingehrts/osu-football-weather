@@ -1,0 +1,19 @@
+# Tune freely; re-run the pipeline after changes.
+wind:        # applies to the game window, mph
+  calm:     {sustained_max: 9,  gust_max: 19}
+  moderate: {sustained_max: 14, gust_max: 24}
+  windy:    {sustained_min: 15, or_gust_min: 25}
+precip:
+  none:     {total_in_max: 0.0}
+  light:    {total_in_max: 0.10}
+  steady:   {total_in_min: 0.10}
+  snow_flag: true          # separate flag, not folded into the others
+temperature:  # degrees F, game-window mean
+  cold: {max: 39}
+  mild: {min: 40, max: 69}
+  warm: {min: 70, max: 84}
+  hot:  {min: 85}
+confidence:
+  suppress_below_n: 5
+  thin_below_n: 10
+game_window_hours: 3.5
