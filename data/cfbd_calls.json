@@ -1,6 +1,6 @@
 {
  "month": "2026-10",
- "calls": 438,
+ "calls": 529,
  "log": [
   [
    "2026-10-28T00:52:34",
@@ -21,7 +21,371 @@
   [
    "2026-10-28T20:15:00",
    "synced to CFBD /info: usedCalls=438 (/info is not billed)"
+  ],
+  [
+   "2026-10-28T20:20:03+00:00",
+   "/games {'year': 2015, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:05+00:00",
+   "/games {'year': 2015, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:09+00:00",
+   "/games {'year': 2016, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:11+00:00",
+   "/games {'year': 2016, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:11+00:00",
+   "/games {'year': 2017, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:12+00:00",
+   "/games {'year': 2017, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:12+00:00",
+   "/games {'year': 2018, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:13+00:00",
+   "/games {'year': 2018, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:13+00:00",
+   "/games {'year': 2019, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:13+00:00",
+   "/games {'year': 2019, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:13+00:00",
+   "/games {'year': 2020, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:14+00:00",
+   "/games {'year': 2020, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:17+00:00",
+   "/games {'year': 2021, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:19+00:00",
+   "/games {'year': 2021, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:19+00:00",
+   "/games {'year': 2022, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:19+00:00",
+   "/games {'year': 2022, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:20+00:00",
+   "/games {'year': 2023, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:21+00:00",
+   "/games {'year': 2023, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:21+00:00",
+   "/games {'year': 2024, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:21+00:00",
+   "/games {'year': 2024, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:22+00:00",
+   "/games {'year': 2025, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-10-28T20:20:23+00:00",
+   "/games {'year': 2025, 'seasonType': 'postseason'}"
+  ],
+  [
+   "2026-10-28T20:20:23+00:00",
+   "/games/teams {'year': 2015, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:23+00:00",
+   "/ppa/games {'year': 2015, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:24+00:00",
+   "/games/teams {'year': 2015, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:26+00:00",
+   "/ppa/games {'year': 2015, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:26+00:00",
+   "/games/teams {'year': 2016, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:28+00:00",
+   "/ppa/games {'year': 2016, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:30+00:00",
+   "/games/teams {'year': 2016, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:30+00:00",
+   "/ppa/games {'year': 2016, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:31+00:00",
+   "/games/teams {'year': 2017, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:31+00:00",
+   "/ppa/games {'year': 2017, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:31+00:00",
+   "/games/teams {'year': 2017, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:32+00:00",
+   "/ppa/games {'year': 2017, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:35+00:00",
+   "/games/teams {'year': 2018, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:36+00:00",
+   "/ppa/games {'year': 2018, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:40+00:00",
+   "/games/teams {'year': 2018, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:42+00:00",
+   "/ppa/games {'year': 2018, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:42+00:00",
+   "/games/teams {'year': 2019, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:43+00:00",
+   "/ppa/games {'year': 2019, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:45+00:00",
+   "/games/teams {'year': 2019, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:45+00:00",
+   "/ppa/games {'year': 2019, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:46+00:00",
+   "/games/teams {'year': 2020, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:46+00:00",
+   "/ppa/games {'year': 2020, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:46+00:00",
+   "/games/teams {'year': 2020, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:46+00:00",
+   "/ppa/games {'year': 2020, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:47+00:00",
+   "/games/teams {'year': 2021, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:47+00:00",
+   "/ppa/games {'year': 2021, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:47+00:00",
+   "/games/teams {'year': 2021, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:47+00:00",
+   "/ppa/games {'year': 2021, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:48+00:00",
+   "/games/teams {'year': 2022, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:48+00:00",
+   "/ppa/games {'year': 2022, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:48+00:00",
+   "/games/teams {'year': 2022, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:49+00:00",
+   "/ppa/games {'year': 2022, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:54+00:00",
+   "/games/teams {'year': 2023, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:54+00:00",
+   "/ppa/games {'year': 2023, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:55+00:00",
+   "/games/teams {'year': 2023, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:55+00:00",
+   "/ppa/games {'year': 2023, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:55+00:00",
+   "/games/teams {'year': 2024, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:55+00:00",
+   "/ppa/games {'year': 2024, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:56+00:00",
+   "/games/teams {'year': 2024, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:56+00:00",
+   "/ppa/games {'year': 2024, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:56+00:00",
+   "/games/teams {'year': 2025, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:57+00:00",
+   "/ppa/games {'year': 2025, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:57+00:00",
+   "/games/teams {'year': 2025, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:57+00:00",
+   "/ppa/games {'year': 2025, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:58+00:00",
+   "/games/teams {'year': 2026, 'seasonType': 'regular', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:58+00:00",
+   "/ppa/games {'year': 2026, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Michigan'}"
+  ],
+  [
+   "2026-10-28T20:20:58+00:00",
+   "/games/teams {'year': 2026, 'seasonType': 'regular', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:58+00:00",
+   "/ppa/games {'year': 2026, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'team': 'Nebraska'}"
+  ],
+  [
+   "2026-10-28T20:20:59+00:00",
+   "/games/teams {'year': 2015, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:20:59+00:00",
+   "/ppa/games {'year': 2015, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:20:59+00:00",
+   "/games/teams {'year': 2016, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:20:59+00:00",
+   "/ppa/games {'year': 2016, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:03+00:00",
+   "/games/teams {'year': 2017, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:04+00:00",
+   "/ppa/games {'year': 2017, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:04+00:00",
+   "/games/teams {'year': 2018, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:04+00:00",
+   "/ppa/games {'year': 2018, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:05+00:00",
+   "/games/teams {'year': 2019, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:05+00:00",
+   "/ppa/games {'year': 2019, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:06+00:00",
+   "/games/teams {'year': 2021, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:06+00:00",
+   "/ppa/games {'year': 2021, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:07+00:00",
+   "/games/teams {'year': 2022, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:07+00:00",
+   "/ppa/games {'year': 2022, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:07+00:00",
+   "/games/teams {'year': 2023, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:08+00:00",
+   "/ppa/games {'year': 2023, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:08+00:00",
+   "/games/teams {'year': 2024, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:08+00:00",
+   "/ppa/games {'year': 2024, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:09+00:00",
+   "/games/teams {'year': 2025, 'seasonType': 'postseason', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:09+00:00",
+   "/ppa/games {'year': 2025, 'seasonType': 'postseason', 'excludeGarbageTime': 'false', 'week': 1}"
+  ],
+  [
+   "2026-10-28T20:21:10+00:00",
+   "/venues {}"
   ]
  ],
- "synced_with_cfbd": "2026-10-28T20:14:56+00:00"
+ "synced_with_cfbd": "2026-10-28T20:20:03+00:00"
 }

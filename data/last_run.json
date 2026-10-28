@@ -1,0 +1,30 @@
+{
+ "label": "--skip-ratings",
+ "start": 438,
+ "end": 529,
+ "calls": 91,
+ "by_endpoint": {
+  "/games": 22,
+  "/games/teams": 34,
+  "/ppa/games": 34,
+  "/venues": 1
+ },
+ "plan_initial": {
+  "/games": 22,
+  "/games/teams": 46,
+  "/ppa/games": 46,
+  "/ratings/sp": 0,
+  "/venues": 1,
+  "/info": 0
+ },
+ "plan_exact": {
+  "/games": 0,
+  "/games/teams": 34,
+  "/ppa/games": 34,
+  "/ratings/sp": 0,
+  "/venues": 1,
+  "/info": 0
+ },
+ "planned_total": 115,
+ "exact_total": 91
+}
