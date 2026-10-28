@@ -210,3 +210,5 @@ if view["sections"] or status in ("played", "indoor"):
     if view["sections"]:
         c2.download_button("Download PNG for TV graphics (1920×1080)", export.render_card_png(view), file_name=f"gameday_{gid}.png", mime="image/png")
     st.caption("To share exactly this view, copy the page address: your game and What-If choices are part of the link.")
+
+ui.footer(res)

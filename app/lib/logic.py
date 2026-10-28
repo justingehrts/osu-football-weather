@@ -194,23 +194,22 @@ PRIMARY = {"passing": "pass_eff", "scoring": "points"}
 
 GAMES_WORD = {"calm": "calm", "moderate": "moderate-wind", "windy": "windy", "none": "dry", "light": "light-rain",
               "steady": "steady-rain", "wet": "wet", "uncertain": "rain-possible"}
+VERB = {CLEAR: "shows a clear signal of", LEANS: "leans toward"}
 
 
-def _takeaway_precip_bins(precip_bins):
-    """The merged 'any rain' bin is only a reference when light/steady are shown; keep it out of the sentence then."""
-    has_specific = any(b in ("light", "steady") for b in precip_bins)
-    return [b for b in precip_bins if not (b == "wet" and has_specific)]
-
-
-def takeaway(stats, focal, opp, wind, precip_bins, bins):
+def takeaway(stats, focal, opp, wind, precip, bins, precip_prob=None):
     """ONE sentence from WIND and PRECIPITATION results only (never temperature).
 
-    Each finding names its OWN condition ("in windy games") -- the wind result is "windy vs. not windy"
-    whatever the rain does, so we never glue wind and rain into one imagined condition. Wording follows
-    the label exactly: 'shows a clear signal of' only for Clear signal, 'leans toward' for Leans, and
-    findings with No clear effect / Not enough games are not claimed at all."""
-    dims = (("wind", [wind] if wind else []), ("precip", _takeaway_precip_bins(precip_bins)))
-    findings = []
+    * Each finding names its OWN condition ("in windy games"): the wind result is "windy vs. not windy"
+      whatever the rain does, so wind and rain are never glued into one imagined condition.
+    * Wording follows the label exactly: "shows a clear signal of" only for Clear signal, "leans toward"
+      for Leans. No clear effect / Not enough games are never claimed as findings.
+    * If the chance of rain is a toss-up (`precip == 'uncertain'`) we make NO rain claim -- we say it is a
+      toss-up and point to the dry and wet histories shown below.
+    """
+    uncertain = precip == "uncertain"
+    dims = (("wind", [wind] if wind else []), ("precip", [precip] if precip and not uncertain else []))
+    grouped = {}                                  # (dim, bin, team) -> list of clauses
     for dim, bvs in dims:
         for bv in bvs:
             for team in (focal, opp):
@@ -223,34 +222,41 @@ def takeaway(stats, focal, opp, wind, precip_bins, bins):
                     r = stats.result(team, dim, bv, PRIMARY[grp])
                     if r.value is None or not r.value:
                         continue
-                    findings.append((0 if dim == "wind" else 1, -RANK[label], 0 if team == focal else 1,
-                                     dict(team=team, dim=dim, bv=bv, grp=grp, label=label, n=n, value=r.value)))
-    findings.sort(key=lambda x: x[:3])                      # wind first, strongest label first, focal team first
-    chosen = []
-    for *_, f in findings:
-        key = (f["team"], f["dim"], f["bv"], f["label"], _direction("", f["value"]))
-        for c in chosen:
-            if c["key"] == key:                              # passing + scoring agree: say it once
-                c["nouns"].append(NOUN[f["grp"]])
-                break
-        else:
-            chosen.append({**f, "key": key, "nouns": [NOUN[f["grp"]]]})
-    if not chosen:
-        loaded = [t for t in (focal, opp) if t and stats.loaded(t)]
-        shown = [(d, b) for d, bs in dims for b in bs]
-        if not loaded or not shown:
-            return "There is no loaded history for these teams and conditions yet, so there is nothing to say about wind or rain."
-        words = " or ".join(dict.fromkeys(f"{GAMES_WORD[b]} games" for _, b in shown))
-        if any(stats.group_label(t, d, b, g)[0] == NONE for t in loaded for d, b in shown for g in ("passing", "scoring")):
-            return (f"Neither team shows a clear effect in {words} (\"no clear effect\" is a real result, "
-                    "not a missing one).")
-        return "There aren't enough past games in these conditions to say anything about wind or rain."
+                    grouped.setdefault((dim, bv, team), []).append((label, _direction("", r.value), NOUN[grp], n))
+    ordered = sorted(grouped.items(), key=lambda kv: (0 if kv[0][0] == "wind" else 1,
+                                                      -max(RANK[c[0]] for c in kv[1]), 0 if kv[0][2] == focal else 1))
     parts = []
-    for c in chosen[:3]:
-        verb = "shows a clear signal of" if c["label"] == CLEAR else "leans toward"
-        nouns = " and ".join(dict.fromkeys(c["nouns"]))
-        parts.append(f"{c['team']} {verb} {_direction('', c['value'])} {nouns} in {GAMES_WORD[c['bv']]} games (n={c['n']})")
-    return "; ".join(parts) + ", each compared with that team's other games."
+    for (dim, bv, team), clauses in ordered[:3]:
+        clauses.sort(key=lambda c: (-RANK[c[0]], c[2]))
+        pieces = []
+        for (label, direction), group in _groupby(clauses):
+            pieces.append(f"{VERB[label]} {direction} {' and '.join(group)}")
+        parts.append(f"{team} {' and '.join(pieces)} in {GAMES_WORD[bv]} games (n={min(c[3] for c in clauses)})")
+    toss_up = (f"rain is a toss-up ({precip_prob:.0f}% chance), so the dry and wet histories are both shown below"
+               if uncertain and precip_prob is not None else
+               "rain is a toss-up, so the dry and wet histories are both shown below" if uncertain else None)
+    if parts:
+        tail = ", each compared with that team's other games"
+        return "; ".join(parts) + tail + (f"; {toss_up}" if toss_up else "") + "."
+    loaded = [t for t in (focal, opp) if t and stats.loaded(t)]
+    shown = [(d, b) for d, bs in dims for b in bs]
+    if toss_up and not shown:
+        return toss_up[0].upper() + toss_up[1:] + "."
+    if not loaded or not shown:
+        return "There is no loaded history for these teams and conditions yet, so there is nothing to say about wind or rain."
+    words = " or ".join(dict.fromkeys(f"{GAMES_WORD[b]} games" for _, b in shown))
+    if any(stats.group_label(t, d, b, g)[0] == NONE for t in loaded for d, b in shown for g in ("passing", "scoring")):
+        return (f"Neither team shows a clear effect in {words} (\"no clear effect\" is a real result, not a missing one)"
+                + (f"; {toss_up}" if toss_up else "") + ".")
+    return "There aren't enough past games in these conditions to say anything about wind or rain" + (f"; {toss_up}" if toss_up else "") + "."
+
+
+def _groupby(clauses):
+    """Merge clauses with the same label and direction: [(label, direction), [nouns...]]."""
+    out = {}
+    for label, direction, noun, _ in clauses:
+        out.setdefault((label, direction), []).append(noun)
+    return list(out.items())
 
 
 # --------------------------------------------------------------------------- the card view
@@ -299,7 +305,7 @@ def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side
                     r = stats.result(team, dim, bv, m, scope)
                     rows.append(r)
             view["sections"].append({"dim": dim, "bin": bv, "title": VS_NOT.get(bv, bv), "rows": rows})
-    view["takeaway"] = takeaway(stats, focal, opp, cond["wind"], precip_bins if cond["precip"] else [], bins)
+    view["takeaway"] = takeaway(stats, focal, opp, cond["wind"], cond["precip"], bins, cond.get("precip_prob"))
     return view
 
 

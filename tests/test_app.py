@@ -87,29 +87,45 @@ def test_deferred_team_is_data_not_loaded_not_an_error():
 # --------------------------------------------------------------------------- takeaway
 def test_takeaway_wording_follows_the_label():
     st = windy_stats()
-    t = logic.takeaway(st, "Ohio State", "USC", "windy", [], BINS)
+    t = logic.takeaway(st, "Ohio State", "USC", "windy", None, BINS)
     assert "Ohio State shows a clear signal of lower passing efficiency and scoring in windy games (n=31)" in t
     assert "USC leans toward lower" in t and "(n=20)" in t
     assert t.count(".") == 1 or t.endswith(".")            # one sentence
 
 
+def test_one_teams_findings_merge_into_one_clause_with_each_labels_own_verb():
+    st = windy_stats(osu_tier="clear", osu_n=40)
+    st.t.loc[("Ohio State", "all", "wind", "windy", "scoring"), "tier"] = "leans"          # passing clear, scoring only leans
+    t = logic.takeaway(st, "Ohio State", "USC", "windy", None, BINS)
+    assert "Ohio State shows a clear signal of lower passing efficiency and leans toward lower scoring in windy games (n=40)" in t
+    assert t.count("Ohio State") == 1
+
+
+def test_a_toss_up_rain_chance_makes_no_rain_claim_and_says_so():
+    st = windy_stats()
+    t = logic.takeaway(st, "Ohio State", "USC", "calm", "uncertain", BINS, precip_prob=67)
+    assert "rain is a toss-up (67% chance)" in t and "dry games" not in t and "wet games" not in t
+    only_rain = logic.takeaway(st, "Ohio State", "USC", None, "uncertain", BINS, precip_prob=50)
+    assert only_rain.startswith("Rain is a toss-up (50% chance)")
+
+
 def test_takeaway_never_says_clear_when_n_is_under_30():
     st = windy_stats(osu_tier="clear", osu_n=25)
-    t = logic.takeaway(st, "Ohio State", "USC", "windy", [], BINS)
+    t = logic.takeaway(st, "Ohio State", "USC", "windy", None, BINS)
     assert "clear signal" not in t.lower() and "Ohio State leans toward" in t
 
 
 def test_takeaway_is_silent_about_temperature_and_calls_no_effect_a_result():
     st = windy_stats(osu_tier="no_clear_effect", usc_tier="no_clear_effect")
-    t = logic.takeaway(st, "Ohio State", "USC", "windy", [], BINS)
+    t = logic.takeaway(st, "Ohio State", "USC", "windy", None, BINS)
     assert "no clear effect" in t.lower() and "real result" in t
     for word in ("cold", "warm", "hot", "temperature", "mild"):
-        assert word not in logic.takeaway(windy_stats(), "Ohio State", "USC", "windy", [], BINS).lower()
+        assert word not in logic.takeaway(windy_stats(), "Ohio State", "USC", "windy", None, BINS).lower()
 
 
 def test_takeaway_with_too_little_history():
     st = windy_stats(osu_tier="insufficient", osu_n=3, usc_tier="insufficient", usc_n=2)
-    assert "aren't enough past games" in logic.takeaway(st, "Ohio State", "USC", "windy", [], BINS)
+    assert "aren't enough past games" in logic.takeaway(st, "Ohio State", "USC", "windy", None, BINS)
 
 
 def test_wind_findings_come_before_rain():
@@ -119,7 +135,7 @@ def test_wind_findings_come_before_rain():
         ["team", "scope", "bin_type", "bin_value", "metric"]).sort_index()
     st.t = pd.concat([st.t.reset_index(), pd.DataFrame([dict(team="Ohio State", scope="all", bin_type="precip", bin_value="light", grp="scoring", tier="clear", n=40)])]).set_index(
         ["team", "scope", "bin_type", "bin_value", "grp"]).sort_index()
-    t = logic.takeaway(st, "Ohio State", "USC", "windy", ["light"], BINS)
+    t = logic.takeaway(st, "Ohio State", "USC", "windy", "light", BINS)
     assert t.index("windy games") < t.index("light-rain games")
 
 
@@ -247,3 +263,24 @@ def test_evidence_and_methodology_pages_render():
     for phrase in ("FCS opponents are excluded from the adjusted and controlled numbers", "Clear signal", "vs. all other games",
                    "Temperature is context only", "overall average"):
         assert phrase.lower() in body.lower() or phrase.lower() in " ".join(h.value for h in me.header).lower()
+
+
+def test_shared_links_prefill_the_view():
+    from pathlib import Path
+    at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app/streamlit_app.py"), default_timeout=90)
+    at.query_params["wind"] = "windy"
+    at.query_params["precip"] = "steady"
+    at.run()
+    assert not at.exception
+    assert [s for s in at.selectbox if s.label == "Wind"][0].value == "Windy"
+    assert [s for s in at.selectbox if s.label == "Precipitation"][0].value == "Steady rain"
+    assert "windy games" in at.info[0].value
+    ex = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app/pages/1_Team_Explorer.py"), default_timeout=90)
+    ex.query_params["team"] = "Nebraska"
+    ex.run()
+    assert not ex.exception and [s for s in ex.selectbox if s.label == "Team"][0].value == "Nebraska"
+
+
+def test_pages_say_how_fresh_the_data_is():
+    at = run_page("app/streamlit_app.py")
+    assert any("History through games played" in c.value for c in at.caption)

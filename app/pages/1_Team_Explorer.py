@@ -103,3 +103,5 @@ else:
                              "unit": logic.METRIC_INFO[m][1], "n_games": r.n, "evidence": r.label,
                              "interval_90_lo": None if r.lo is None else round(r.lo, 3), "interval_90_hi": None if r.hi is None else round(r.hi, 3)})
     st.download_button("Download CSV of this view", logic.csv_bytes(rows), file_name=f"explorer_{team.replace(' ', '_')}.csv", mime="text/csv")
+
+ui.footer(res)

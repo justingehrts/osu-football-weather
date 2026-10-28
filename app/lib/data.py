@@ -94,3 +94,17 @@ def snow_games(conn):
            FROM weather_obs w JOIN games g ON g.game_id = w.game_id LEFT JOIN venues v ON v.venue_id = g.venue_id
            WHERE w.snow_flag = 1 AND w.weather_ok = 1 AND g.completed = 1
              AND g.game_id IN (SELECT game_id FROM team_games) ORDER BY g.kickoff_utc""", conn)
+
+
+def history_through(conn):
+    """Date of the most recent finished game that is in the statistics."""
+    r = conn.execute("""SELECT MAX(g.kickoff_utc) FROM games g WHERE g.completed = 1
+                        AND g.game_id IN (SELECT game_id FROM team_games)""").fetchone()
+    return r[0] if r and r[0] else None
+
+
+def last_forecast_time(fconn):
+    if fconn is None:
+        return None
+    r = fconn.execute("SELECT MAX(snapshot_utc) FROM forecast_snapshots").fetchone()
+    return r[0] if r and r[0] else None

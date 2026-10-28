@@ -144,3 +144,16 @@ def intervals_table(rows, pooled_n):
         out.append({"Team": team, "Metric": r.metric_name, "Estimate": round(r.value, dec) if r.value is not None else None,
                     "90% interval": f"{r.lo:+.{dec}f} to {r.hi:+.{dec}f}", "n": r.n, "Evidence": r.label})
     return pd.DataFrame(out)
+
+
+def footer(res):
+    """How fresh is this? (History through the last finished game; time of the latest forecast pull.)"""
+    h, f = data.history_through(res["conn"]), data.last_forecast_time(res["fconn"])
+    fmt = lambda x: pd.to_datetime(x, utc=True).tz_convert("America/New_York")  # noqa: E731
+    bits = []
+    if h:
+        bits.append(f"History through games played {fmt(h).strftime('%b %d, %Y')}")
+    if f:
+        bits.append(f"latest forecast pulled {fmt(f).strftime('%b %d, %-I:%M %p ET')}")
+    st.divider()
+    st.caption(" · ".join(bits + ["Exploratory history, not a prediction. See the Methodology page."]))
