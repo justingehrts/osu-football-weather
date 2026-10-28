@@ -4,6 +4,8 @@ For every venue used by a tracked team since first_season we (a) check what the
 CFBD venue record actually contains, (b) apply hand overrides, (c) find the
 nearest ASOS station and (d) flag domes, bad coordinates and far stations.
 """
+from datetime import date
+
 from .cfbd import CfbdClient, pick
 from .common import connect, haversine_mi, load_bins, load_yaml
 from .stations import load_catalog, nearest_station
@@ -44,6 +46,10 @@ def run(conn=None, client=None):
         return
     client = client or CfbdClient()
     cfbd_venues = {v["id"]: v for v in client.venues()}
+    if any(v not in cfbd_venues for v in ids) and client.is_cached("/venues"):
+        # a venue we need isn't in the saved list (new stadium?) -> refresh the list once
+        client.cache_path("/venues", {}).unlink()
+        cfbd_venues = {v["id"]: v for v in client.venues()}
     sample = next(iter(cfbd_venues.values()), {})
     print("CFBD venue fields seen:", sorted(sample))  # so a field rename is obvious in logs
     catalog = load_catalog()
@@ -86,14 +92,16 @@ def run(conn=None, client=None):
                 notes.append(f"FAR STATION: {dist:.1f} mi (> {far_mi})")
         conn.execute(
             """INSERT INTO venues(venue_id,name,lat,lon,dome,nearest_station,station_dist_mi,
-                                  station_far,coord_source,notes)
-               VALUES(?,?,?,?,?,?,?,?,?,?)
+                                  station_far,coord_source,notes,first_seen)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(venue_id) DO UPDATE SET name=excluded.name, lat=excluded.lat,
                  lon=excluded.lon, dome=excluded.dome, nearest_station=excluded.nearest_station,
                  station_dist_mi=excluded.station_dist_mi, station_far=excluded.station_far,
-                 coord_source=excluded.coord_source, notes=excluded.notes""",
+                 coord_source=excluded.coord_source, notes=excluded.notes,
+                 first_seen=COALESCE(venues.first_seen, excluded.first_seen)""",
             (vid, v.get("name"), lat, lon, dome, station,
-             round(dist, 1) if dist is not None else None, far or 0, src, "; ".join(notes)))
+             round(dist, 1) if dist is not None else None, far or 0, src, "; ".join(notes),
+             date.today().isoformat()))
     prune_unusable_weather(conn)
     conn.commit()
     flagged = conn.execute("SELECT COUNT(*) FROM venues WHERE notes != ''").fetchone()[0]

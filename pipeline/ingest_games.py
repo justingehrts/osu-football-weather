@@ -79,6 +79,7 @@ def store_games(conn, games, tset, season, season_type):
 
 
 def store_box_scores(conn, records, tset, known_games):
+    wrote = 0
     for rec in records:
         if rec["id"] not in known_games:
             continue
@@ -98,15 +99,20 @@ def store_box_scores(conn, records, tset, known_games):
                      rush_yds=excluded.rush_yds, turnovers=excluded.turnovers""",
                 (rec["id"], name, other, pick(side, "homeAway", "home_away"), row["points"], row["plays"],
                  row["pass_att"], row["pass_yds"], row["rush_att"], row["rush_yds"], row["turnovers"]))
+            wrote += 1
+    return wrote
 
 
 def store_ppa(conn, records, tset, request_team=None):
+    wrote = 0
     for p in records:
         off = (p.get("offense") or {}).get("overall")
         gid = pick(p, "gameId", "game_id")
         team = pick(p, "team", "school") or request_team
         if off is not None and gid is not None and team in tset:
-            conn.execute("UPDATE team_games SET ppa_off=? WHERE game_id=? AND team=?", (off, gid, team))
+            wrote += conn.execute("UPDATE team_games SET ppa_off=? WHERE game_id=? AND team=?",
+                                  (off, gid, team)).rowcount
+    return wrote
 
 
 # --------------------------------------------------------------------------- planning
@@ -217,14 +223,28 @@ def run_stage2(conn, client, teams, cur, bins):
     known = {r[0] for r in conn.execute("SELECT game_id FROM games")}
     last_week = conn.execute("SELECT COALESCE(MAX(week),0) FROM games WHERE season=? AND completed=1 "
                              "AND season_type='regular'", (cur,)).fetchone()[0]
+    probed = set()          # request shapes already test-driven with ONE request
     for r in stats_requests(conn, teams, cur, bins):
         for endpoint in ("box", "ppa"):
             _, ttl = request_is_cached(client, r, endpoint, cur, bins, last_week)
             kw = dict(season_type=r["season_type"], week=r.get("week"), team=r.get("team"), ttl_hours=ttl)
             if endpoint == "box":
-                store_box_scores(conn, client.game_team_stats(r["season"], **kw), tset, known)
+                records = client.game_team_stats(r["season"], **kw)
+                wrote = store_box_scores(conn, records, tset, known)
             else:
-                store_ppa(conn, client.ppa_games(r["season"], **kw), tset, r.get("team"))
+                records = client.ppa_games(r["season"], **kw)
+                wrote = store_ppa(conn, records, tset, r.get("team"))
+            # Budget rule: test every new kind of request once before looping. If a response
+            # comes back with data but we could not store any of it, our reading of that endpoint
+            # is wrong -- stop now rather than burn the rest of the budget on it.
+            shape = (endpoint, r["kind"], r["season_type"])
+            if shape not in probed:
+                probed.add(shape)
+                if records and not wrote:
+                    conn.commit()
+                    raise SystemExit(f"PROBE FAILED for {shape}: {len(records)} records came back but none "
+                                     f"matched a tracked game. First record keys: {sorted(records[0])}. "
+                                     "Stopping before spending more calls.")
         for team, season in r["covers"]:
             if season < cur:
                 conn.execute("INSERT OR REPLACE INTO ingest_log VALUES (?,?,datetime('now'))", (team, season))
