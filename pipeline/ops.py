@@ -17,7 +17,9 @@ def main(mode):
     client = CfbdClient()
     info = client.info()                       # also pulls our counter up to CFBD's own count
     print("CFBD_INFO", json.dumps({k: info.get(k) for k in ("tierName", "monthlyLimit", "usedCalls", "remainingCalls", "resetAt")}))
-    if mode == "plan":
+    if mode == "info":
+        pass                                   # the call above is the whole job
+    elif mode == "plan":
         resolve_opponents.run(client=client)
         conn = connect()
         plan, pending = plan_mod.build(conn, client)
