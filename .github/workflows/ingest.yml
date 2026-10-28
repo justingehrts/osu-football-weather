@@ -3,6 +3,9 @@ name: Incremental data ingest
 # Runs on the DEFAULT branch (GitHub only fires schedules there), so this starts
 # working once this PR is merged. Times are UTC.
 on:
+  push:                       # TEMPORARY: review-branch run; remove before merge
+    branches: [claude/sleepy-noether-tbnm6j]
+    paths: [".github/workflows/ingest.yml"]
   schedule:
     - cron: "17 9 * * 1"        # weekly, Mondays ~5:17 AM Eastern, all year
     - cron: "43 9 * 8-12 *"     # daily, August through December (football season)
