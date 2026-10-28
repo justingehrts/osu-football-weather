@@ -16,6 +16,7 @@ CACHE_DIR = DATA_DIR / "cache"
 REPORT_DIR = ROOT / "reports"
 RAW_DIR = DATA_DIR / "raw"            # every CFBD response, committed
 COUNTER_PATH = DATA_DIR / "cfbd_calls.json"
+FORECAST_DB_PATH = DATA_DIR / "forecasts.sqlite"   # small, separate file: forecast snapshots commit often
 DB_PATH = DATA_DIR / "osu_weather.db"
 
 
@@ -93,3 +94,34 @@ def deferred_teams():
     """Tracked teams whose history we have chosen NOT to load yet (config/opponents.yaml `deferred`).
     They stay on the team list (and in the schedule) but nothing is requested or computed for them."""
     return list(load_yaml("opponents.yaml").get("deferred") or [])
+
+
+FORECAST_SCHEMA = """
+-- One row per forecast pull per game. NEVER updated or deleted: forecasts change, and the history
+-- (what we knew, and when) is the point.
+CREATE TABLE IF NOT EXISTS forecast_snapshots (
+  snapshot_utc TEXT NOT NULL, game_id INTEGER NOT NULL,
+  status TEXT NOT NULL,            -- ok | beyond_horizon | no_kickoff_time | no_venue | error
+  source TEXT,                     -- nws | open-meteo
+  kickoff_utc TEXT, hours_ahead REAL, window_start TEXT, window_end TEXT,
+  wind_sust REAL, wind_gust REAL,  -- mph, max over the game window
+  precip_prob REAL,                -- %, max over the window
+  precip_amt REAL,                 -- inches over the window
+  temp_f REAL,                     -- mean over the window
+  wind_bin TEXT, precip_bin TEXT, temp_bin TEXT,
+  precip_uncertain INTEGER,        -- 1 = chance of rain is in the middle band: show dry AND wet
+  detail TEXT,                     -- hourly values used, JSON
+  note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_fs_game ON forecast_snapshots(game_id, snapshot_utc);
+"""
+
+
+def connect_forecasts(db_path=FORECAST_DB_PATH):
+    db_path = Path(db_path)
+    if str(db_path) != ":memory:":
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.executescript(FORECAST_SCHEMA)
+    return conn
