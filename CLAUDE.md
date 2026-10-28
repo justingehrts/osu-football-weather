@@ -8,8 +8,10 @@ their own baseline. Used by a TV weather team and sports team.
 - /pipeline: Python ingest scripts, run by GitHub Actions (never by the app)
 - /data: SQLite db + summary tables, committed by the Action
 - /config: bins.yaml (all thresholds), venue/station overrides
-- /app: Streamlit app, READ-ONLY on the database
+- /app: Streamlit app, READ-ONLY on the databases (opened with `mode=ro`; a test proves writes fail)
 - Heavy math is precomputed in the pipeline; the app only loads and displays.
+- Two SQLite files: `data/osu_weather.db` (history + summary tables, changes after new games) and
+  `data/forecasts.sqlite` (forecast snapshots only, tiny, committed often).
 
 ## Data sources
 - Games/box scores/plays/ratings: CollegeFootballData API (key in CFBD_API_KEY) -- see
@@ -60,6 +62,49 @@ offensive PPA; scoring = points scored + offensive PPA.
 Everything is EXPLORATORY: hundreds of cells are tested, so about 1 in 10 intervals exclude zero by
 luck. Tiers and stars are leads to check, not findings. Raw, opponent-adjusted and controlled deltas
 all use the same yardstick ("bin vs the team's average game") so they can be compared.
+
+## How the app and the workflows fit together
+```
+CFBD ──(1 call/run: any new completed games?)──► refresh.yml ──► data/osu_weather.db ──┐
+IEM ASOS (airport weather for each finished game) ──────────────┘   team_splits, team_tiers │
+NWS (Open-Meteo fallback) ──► forecast.yml ──► data/forecasts.sqlite (append-only) ───────┼──► app/ (read-only)
+config/bins.yaml, teams.yaml, opponents.yaml ───────────────────────────────────────────────┘
+```
+- `.github/workflows/refresh.yml`: Sunday and Monday (UTC 07:17 and 19:17) Aug-Jan. ONE CFBD call; only if a loaded
+  team has a completed game with no box score does it fetch box scores + PPA, refresh the current-season SP+
+  (1 call), pull the ASOS windows, recompute `team_splits`/`team_tiers`, and commit. Quiet runs commit nothing.
+  Budget: about 4 calls a week when quiet, about 8 on a game week. It is the only scheduled CFBD user.
+- `.github/workflows/forecast.yml`: every 6 hours Tue-Sat in season; NWS hourly gridpoint (Open-Meteo only if NWS
+  fails) for each upcoming game's venue, kickoff to +3.5 h, mapped to the same bins as the history. Each pull is a NEW
+  row in `forecast_snapshots`; rows are never updated or deleted. A game beyond `forecast.horizon_hours` gets a
+  `beyond_horizon` row (we say so, we do not guess); dome games get no row ("indoor, weather not a factor").
+- `.github/workflows/ingest.yml` is manual-only (a full incremental run, e.g. after un-deferring a team).
+- Deferred teams (`deferred:` in config/opponents.yaml) stay on the schedule but are never loaded; the app shows
+  "data not loaded yet" for them and nothing may fail because they are missing.
+- The app lives in `app/` (`streamlit_app.py` = Gameday Card, `pages/` = Team Explorer, Evidence, Methodology).
+  Decisions (labels, takeaway, exports) are in `app/lib/logic.py` with no Streamlit import so they are unit tested.
+  Run it locally: `pip install -r app/requirements.txt && streamlit run app/streamlit_app.py`.
+  Do NOT deploy from a branch; main is the live branch once the owner has reviewed.
+
+## App presentation rules (owner's rules; tests enforce several of them)
+- **Default yardstick** is the controlled "vs. all other games" number ("windy vs. not windy"), labelled on every
+  card. The "vs. the team's overall average" yardstick appears ONLY on the Methodology page and inside expanders;
+  never mix the two on one card.
+- Lead with wind. Each team's own result comes first; the pooled line is a reference labelled "all N loaded teams".
+- Evidence labels (plain language): **Clear signal**, **Leans**, **No clear effect**, **Not enough games**.
+  "Clear signal" requires BOTH the pipeline's `clear` tier AND n >= `app.clear_signal_min_n` (30, in bins.yaml);
+  otherwise show "Leans". So steady rain is "Leans" and stays a separate bin from light rain. A single metric with no
+  tier (points allowed, rushing, turnovers) is at most "Leans". "No clear effect" is a real result: show it plainly.
+- The one-sentence takeaway uses ONLY wind and precipitation, only Clear signal / Leans findings, names each
+  finding's own condition, and never words anything stronger than its label.
+- Temperature is context only: never in the takeaway or the Gameday headline. It lives in the Explorer and in an
+  expander labelled "Temperature (context only): results differ by team".
+- Cold: show the controlled number by default; in an expander show the raw number with the note that raw cold-game
+  results look worse because cold games are late-season games against tougher opponents.
+- Interval numbers appear only inside expanders. Every number carries its n.
+- FCS games are excluded from adjusted/controlled numbers (no SP+ rating); the Methodology page says so.
+- Played games show results with observed weather; only upcoming games get a forecast. A game beyond the forecast
+  horizon says so; a mid-range chance of rain (`forecast.precip_prob_middle`) shows dry and wet side by side.
 
 ## Style
 - Plain, readable Python; comment the "why" for non-obvious steps.
