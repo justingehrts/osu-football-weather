@@ -1,11 +1,19 @@
 {
  "month": "2026-10",
- "calls": 437,
+ "calls": 439,
  "log": [
   [
    "2026-10-28T00:52:34",
    "seeded from CFBD /info: usedCalls=437 (calls before the cache/counter existed)"
+  ],
+  [
+   "2026-10-28T01:00:33+00:00",
+   "/info"
+  ],
+  [
+   "2026-10-28T01:00:55+00:00",
+   "/games {'year': 2026, 'seasonType': 'regular'}"
   ]
  ],
- "synced_with_cfbd": "2026-10-28T00:52:34"
+ "synced_with_cfbd": "2026-10-28T01:00:55+00:00"
 }

@@ -1,0 +1,120 @@
+{
+ "total": 319,
+ "used_before": 439,
+ "plan": {
+  "/games": {
+   "need": 22,
+   "exact": true
+  },
+  "/games/teams": {
+   "need": 147,
+   "exact": false
+  },
+  "/ppa/games": {
+   "need": 147,
+   "exact": false
+  },
+  "/ratings/sp": {
+   "need": 1,
+   "exact": true
+  },
+  "/venues": {
+   "need": 1,
+   "exact": true
+  },
+  "/info": {
+   "need": 1,
+   "exact": true
+  }
+ },
+ "pending_games_requests": [
+  [
+   2015,
+   "regular"
+  ],
+  [
+   2015,
+   "postseason"
+  ],
+  [
+   2016,
+   "regular"
+  ],
+  [
+   2016,
+   "postseason"
+  ],
+  [
+   2017,
+   "regular"
+  ],
+  [
+   2017,
+   "postseason"
+  ],
+  [
+   2018,
+   "regular"
+  ],
+  [
+   2018,
+   "postseason"
+  ],
+  [
+   2019,
+   "regular"
+  ],
+  [
+   2019,
+   "postseason"
+  ],
+  [
+   2020,
+   "regular"
+  ],
+  [
+   2020,
+   "postseason"
+  ],
+  [
+   2021,
+   "regular"
+  ],
+  [
+   2021,
+   "postseason"
+  ],
+  [
+   2022,
+   "regular"
+  ],
+  [
+   2022,
+   "postseason"
+  ],
+  [
+   2023,
+   "regular"
+  ],
+  [
+   2023,
+   "postseason"
+  ],
+  [
+   2024,
+   "regular"
+  ],
+  [
+   2024,
+   "postseason"
+  ],
+  [
+   2025,
+   "regular"
+  ],
+  [
+   2025,
+   "postseason"
+  ]
+ ]
+}
