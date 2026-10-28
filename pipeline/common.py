@@ -33,6 +33,10 @@ def connect(db_path=DB_PATH):
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    # team_splits is derived (rebuilt every run), so if its layout is old just drop it.
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(team_splits)")]
+    if cols and "adj_delta" not in cols:
+        conn.execute("DROP TABLE team_splits")
     conn.executescript((Path(__file__).parent / "schema.sql").read_text())
     return conn
 

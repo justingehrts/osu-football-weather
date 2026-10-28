@@ -35,6 +35,9 @@ class CfbdClient:
     def ppa_games(self, year, team):
         return self.get("/ppa/games", year=year, team=team, excludeGarbageTime="false")
 
+    def sp_ratings(self, year):
+        return self.get("/ratings/sp", year=year)
+
     def venues(self):
         return self.get("/venues")
 

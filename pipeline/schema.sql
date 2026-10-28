@@ -46,16 +46,28 @@ CREATE TABLE IF NOT EXISTS forecast_snapshots (
   wind_sust REAL, wind_gust REAL, precip_prob REAL, precip_amt REAL,
   temp_f REAL, source TEXT
 );
+-- Opponent strength by season (CFBD SP+ ratings, end-of-season). Used for opponent adjustment.
+CREATE TABLE IF NOT EXISTS team_ratings (
+  season INTEGER, team TEXT, sp_overall REAL, sp_off REAL, sp_def REAL,
+  PRIMARY KEY (season, team)
+);
+-- Derived: fully rebuilt every run. 'delta' = raw (vs team's flat average); 'adj_delta' =
+-- vs what was expected given opponent strength. *_lo/_hi = bootstrap interval.
 CREATE TABLE IF NOT EXISTS team_splits (
   team TEXT, scope TEXT,        -- (+) 'all' or 'ex2020'
   bin_type TEXT, bin_value TEXT, metric TEXT,
-  value REAL, baseline REAL, delta REAL, n INTEGER,
-  confidence TEXT               -- (+) suppressed / thin / solid
+  value REAL, baseline REAL, delta REAL, delta_lo REAL, delta_hi REAL,
+  adj_delta REAL, adj_lo REAL, adj_hi REAL,
+  n INTEGER, n_adj INTEGER,
+  confidence TEXT,              -- (+) suppressed / thin / solid (from n)
+  sig_raw INTEGER, sig_adj INTEGER   -- (+) 1 if the interval excludes zero (exploratory!)
 );
 
 DROP VIEW IF EXISTS team_game_weather;
 CREATE VIEW team_game_weather AS
 SELECT tg.*, g.season, g.week, g.season_type, g.kickoff_utc, g.venue_id, g.neutral_site,
+       CASE WHEN tg.home_away = 'home' THEN g.away_points ELSE g.home_points END AS points_allowed,
+       r.sp_overall AS opp_sp, r.sp_off AS opp_sp_off, r.sp_def AS opp_sp_def,
        v.dome, v.station_far, v.station_dist_mi,
        w.station, w.temp_f_mean, w.wind_sust_max, w.wind_gust_max, w.precip_in_total,
        w.snow_flag, w.vis_min, w.n_obs, w.weather_ok,
@@ -63,4 +75,5 @@ SELECT tg.*, g.season, g.week, g.season_type, g.kickoff_utc, g.venue_id, g.neutr
 FROM team_games tg
 JOIN games g ON g.game_id = tg.game_id
 LEFT JOIN venues v ON v.venue_id = g.venue_id
-LEFT JOIN weather_obs w ON w.game_id = tg.game_id;
+LEFT JOIN weather_obs w ON w.game_id = tg.game_id
+LEFT JOIN team_ratings r ON r.season = g.season AND r.team = tg.opponent;

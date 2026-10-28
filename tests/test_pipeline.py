@@ -1,4 +1,5 @@
 """Offline tests: bins, observation summarising, split math, report. No network."""
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -91,11 +92,17 @@ def _fake_db():
     return conn
 
 
+COLS = ["team", "scope", "bin_type", "bin_value", "metric", "value", "baseline", "delta", "delta_lo",
+        "delta_hi", "adj_delta", "adj_lo", "adj_hi", "n", "n_adj", "confidence", "sig_raw", "sig_adj"]
+
+
+def _splits(conn):
+    return pd.DataFrame(compute_splits.compute(compute_splits.usable_games(conn), BINS), columns=COLS)
+
+
 def test_splits_baseline_n_and_dome_exclusion():
     conn = _fake_db()
-    rows = compute_splits.compute(compute_splits.usable_games(conn), BINS)
-    t = pd.DataFrame(rows, columns=["team", "scope", "bin_type", "bin_value", "metric", "value",
-                                    "baseline", "delta", "n", "confidence"])
+    t = _splits(conn)
     g = lambda scope, bv, m: t[(t.scope == scope) & (t.bin_value == bv) & (t.metric == m)].iloc[0]
     # 18 games, 3 are dome (i==5) -> 15 usable; windy = 9 (i<3 each season)
     assert g("all", "windy", "points").n == 9 and g("all", "windy", "points").confidence == "thin"
@@ -104,14 +111,75 @@ def test_splits_baseline_n_and_dome_exclusion():
     assert g("all", "windy", "points").delta == pytest.approx(20 - (9 * 20 + 6 * 40) / 15)
     assert g("ex2020", "windy", "points").n == 6     # 2020 filter drops 3 windy games
     assert g("all", "windy", "pass_eff").value == pytest.approx(100 / 20)
+    assert g("all", "windy", "points_allowed").value == 20   # opponent scored 20 in every fake game
+    assert t[t.bin_value == "wet"].empty               # no wet games in the fake data, so no row
+
+
+def test_merged_bins_from_config():
+    df = pd.DataFrame({"wind_bin": ["calm"] * 4, "precip_bin": ["none", "light", "steady", "light"],
+                       "temp_bin": ["mild", "warm", "hot", "cold"]})
+    m = compute_splits.bin_masks(df, BINS)
+    assert m[("precip", "wet")].tolist() == [False, True, True, True]       # light + steady
+    assert m[("temp", "warm_hot")].tolist() == [False, True, True, False]   # 70+
+    assert ("precip", "light") in m and ("temp", "warm") in m              # originals kept
+
+
+def test_bootstrap_interval_brackets_known_difference():
+    rng = np.random.default_rng(1)
+    v = np.concatenate([rng.normal(10, 1, 100), rng.normal(15, 1, 100)])
+    masks = np.column_stack([np.arange(200) >= 100])
+    idx = np.random.default_rng(2).integers(0, 200, size=(500, 200))
+    d, lo, hi, n = compute_splits.delta_with_interval(v, masks, idx, 0.90)
+    assert n[0] == 100 and d[0] == pytest.approx(2.5, abs=0.3) and lo[0] < d[0] < hi[0]
+    assert compute_splits.excludes_zero(lo[0], hi[0]) == 1
+    assert compute_splits.excludes_zero(-1.0, 1.0) == 0
+
+
+def test_expected_residuals_need_enough_games():
+    x = np.arange(30, dtype=float)
+    assert np.isnan(compute_splits.expected_residuals(2 * x, x, 50)).all()
+    assert np.allclose(compute_splits.expected_residuals(2 * x + 1, x, 20), 0, atol=1e-9)
+
+
+def test_adjustment_removes_schedule_effect():
+    """Weather has NO effect here: results depend only on opponent quality, and the 'warm' games
+    happen to be against weak opponents. Raw delta should look big; adjusted should be ~zero."""
+    rng = np.random.default_rng(0)
+    n = 160
+    warm = np.arange(n) < 60
+    opp_def = np.where(warm, rng.normal(-8, 2, n), rng.normal(0, 2, n))   # weak (low) vs average defenses
+    pts = 30 + 1.5 * opp_def + rng.normal(0, 3, n)
+    df = pd.DataFrame({"team": "A", "season": 2019, "wind_bin": "calm", "precip_bin": "none",
+                       "temp_bin": np.where(warm, "warm", "mild"), "points": pts,
+                       "opp_sp_def": opp_def, "opp_sp_off": opp_def})
+    for c in ("pass_yds", "pass_att", "rush_yds", "rush_att", "turnovers", "ppa_off", "points_allowed"):
+        df[c] = np.nan      # other metrics not under test
+    rows = pd.DataFrame(compute_splits.compute(df, BINS), columns=COLS)
+    r = rows[(rows.scope == "all") & (rows.bin_value == "warm") & (rows.metric == "points")].iloc[0]
+    assert r.delta < -5 and r.sig_raw == 1       # looks like warm weather "hurts"... but it's the schedule
+    assert abs(r.adj_delta) < 1.5 and r.sig_adj == 0
+
+
+def test_confounding_and_snow_in_report():
+    conn = _fake_db()
+    conn.execute("UPDATE weather_obs SET snow_flag=1 WHERE game_id=1")
+    conn.execute("UPDATE games SET home_points=30, away_points=20 WHERE game_id=1")
+    conn.commit()
+    tdf = compute_splits.usable_games(conn)
+    tdf = tdf[tdf.team == "A"]
+    lines = report.confounding_table(tdf, BINS)
+    assert any("wind: windy" in l for l in lines) and any("all usable games" in l for l in lines)
+    snow = "\n".join(report.snow_games(conn))
+    assert "Open Stadium" in snow and "B 20, A 30" in snow
 
 
 def test_report_builds():
     conn = _fake_db()
-    conn.executemany("INSERT INTO team_splits VALUES (?,?,?,?,?,?,?,?,?,?)",
+    conn.executemany("INSERT INTO team_splits VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                      compute_splits.compute(compute_splits.usable_games(conn), BINS))
     text = report.build(conn, BINS)
-    assert "## A" in text and "wind: windy" in text and "Venue / station flags" in text
+    assert "EXPLORATORY" in text and "## A" in text and "wind: windy" in text
+    assert "Snow games" in text and "Venue / station flags" in text
 
 
 class _FakeClient:

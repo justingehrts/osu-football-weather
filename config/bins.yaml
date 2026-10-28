@@ -24,3 +24,13 @@ quality:
   min_obs_in_window: 3       # fewer observations than this => weather not trusted
 flags:
   covid_seasons: [2020]      # kept in the data, but filterable
+
+# --- added in milestone 2 (statistics refinement) ---
+merged_bins:        # extra, wider bins built from the originals above; the originals stay available
+  precip:      {wet: [light, steady]}
+  temperature: {warm_hot: [warm, hot]}
+stats:
+  ci_level: 0.90                 # confidence level for every delta's interval
+  bootstrap_resamples: 2000
+  bootstrap_seed: 20261028       # fixed so re-running the pipeline gives identical intervals
+  min_games_for_adjustment: 20   # need at least this many games to fit the opponent-strength line
