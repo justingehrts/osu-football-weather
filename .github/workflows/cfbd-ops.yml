@@ -1,11 +1,11 @@
 name: CFBD ops (temporary, review branch only)
 
 # Pushing a change to ops/request.txt runs the mode named on its first line
-# (plan | run). Used to work with the CFBD key from GitHub's runners.
+# (plan | run | forecast). Used to work with the CFBD key from GitHub's runners.
 # Delete this file before merging.
 on:
   push:
-    branches: [claude/sleepy-noether-tbnm6j]
+    branches: [claude/sleepy-noether-tbnm6j, claude/forecast-app]
     paths: ["ops/request.txt"]
 
 permissions:

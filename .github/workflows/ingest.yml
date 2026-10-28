@@ -1,12 +1,8 @@
 name: Incremental data ingest
 
-# Runs on the DEFAULT branch (GitHub only fires schedules there), so this starts
-# working once this PR is merged. Times are UTC.
+# Full incremental ingest, run by hand when you want one (e.g. after un-deferring a team).
 on:
-  schedule:
-    - cron: "17 9 * * 1"        # weekly, Mondays ~5:17 AM Eastern, all year
-    - cron: "43 9 * 8-12 *"     # daily, August through December (football season)
-  workflow_dispatch:            # "Run workflow" button for manual runs
+  workflow_dispatch:            # manual only: the in-season schedule now lives in refresh.yml (1 CFBD call per run)
 
 permissions:
   contents: write               # needed to commit the updated data

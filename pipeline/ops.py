@@ -16,6 +16,10 @@ from .common import DATA_DIR, connect, load_bins
 
 def main(request):
     mode, *flags = shlex.split(request)
+    if mode == "forecast":                     # NWS / Open-Meteo only: no CFBD client, no CFBD calls
+        from . import forecast
+        forecast.run()
+        return
     client = CfbdClient()
     info = client.info()                       # also pulls our counter up to CFBD's own count
     print("CFBD_INFO", json.dumps({k: info.get(k) for k in ("tierName", "monthlyLimit", "usedCalls", "remainingCalls", "resetAt")}))

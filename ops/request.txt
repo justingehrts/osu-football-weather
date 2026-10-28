@@ -1,1 +1,1 @@
-run --skip-ratings
+forecast
