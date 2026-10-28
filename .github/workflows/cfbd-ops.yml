@@ -1,0 +1,42 @@
+name: CFBD ops (temporary, review branch only)
+
+# Pushing a change to ops/request.txt runs the mode named on its first line
+# (plan | run). Used to work with the CFBD key from GitHub's runners.
+# Delete this file before merging.
+on:
+  push:
+    branches: [claude/sleepy-noether-tbnm6j]
+    paths: ["ops/request.txt"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: python -m pipeline.ops "$(head -n1 ops/request.txt)"
+      - name: Commit results (data, raw cache, counter, team list)
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data reports config/opponents.yaml
+          if git diff --cached --quiet; then echo "No changes."; else
+            git commit -m "Ops run: $(head -n1 ops/request.txt) ($(date -u +%Y-%m-%d))"
+            git pull --rebase --autostash && git push
+          fi

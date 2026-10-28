@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS venues (
   station_dist_mi REAL,
   station_far INTEGER,          -- (+) 1 if farther than quality.far_station_miles
   coord_source TEXT,            -- (+) where the coordinates came from
+  first_seen TEXT,              -- (+) date the venue was first added (marks NEW venues in reports)
   notes TEXT                    -- (+) data-quality flags, semicolon separated
 );
 CREATE TABLE IF NOT EXISTS games (
@@ -17,6 +18,7 @@ CREATE TABLE IF NOT EXISTS games (
   kickoff_tbd INTEGER,          -- (+) 1 = CFBD has no real kickoff time yet
   completed INTEGER,            -- (+)
   home_team TEXT, away_team TEXT,
+  home_class TEXT, away_class TEXT,   -- (+) 'fbs' / 'fcs' as CFBD reports it
   venue_id INTEGER, neutral_site INTEGER,
   home_points INTEGER, away_points INTEGER
 );
@@ -51,16 +53,27 @@ CREATE TABLE IF NOT EXISTS team_ratings (
   season INTEGER, team TEXT, sp_overall REAL, sp_off REAL, sp_def REAL,
   PRIMARY KEY (season, team)
 );
--- Derived: fully rebuilt every run. 'delta' = raw (vs team's flat average); 'adj_delta' =
--- vs what was expected given opponent strength. *_lo/_hi = bootstrap interval.
+-- Derived: fully rebuilt every run. One row per team / scope / bin / metric.
+--   delta     = raw (vs team's flat average)
+--   adj_delta = vs expected given opponent strength only
+--   ctl_delta = bin effect with opponent strength + month + home/away held fixed
+-- *_lo/_hi = bootstrap interval; sig_* = 1 if it excludes zero. team '__POOLED__' = all
+-- tracked teams together (n_teams says how many).
 CREATE TABLE IF NOT EXISTS team_splits (
-  team TEXT, scope TEXT,        -- (+) 'all' or 'ex2020'
-  bin_type TEXT, bin_value TEXT, metric TEXT,
-  value REAL, baseline REAL, delta REAL, delta_lo REAL, delta_hi REAL,
+  team TEXT, scope TEXT, bin_type TEXT, bin_value TEXT, metric TEXT,
+  value REAL, baseline REAL,
+  delta REAL, delta_lo REAL, delta_hi REAL,
   adj_delta REAL, adj_lo REAL, adj_hi REAL,
-  n INTEGER, n_adj INTEGER,
-  confidence TEXT,              -- (+) suppressed / thin / solid (from n)
-  sig_raw INTEGER, sig_adj INTEGER   -- (+) 1 if the interval excludes zero (exploratory!)
+  ctl_delta REAL, ctl_lo REAL, ctl_hi REAL,
+  n INTEGER, n_adj INTEGER, n_ctl INTEGER, n_teams INTEGER,
+  confidence TEXT,
+  sig_raw INTEGER, sig_adj INTEGER, sig_ctl INTEGER
+);
+-- Evidence tiers (clear / leans / no_clear_effect / context_only / insufficient), per
+-- metric group: 'passing' = pass yds/att + PPA, 'scoring' = points scored + PPA.
+CREATE TABLE IF NOT EXISTS team_tiers (
+  team TEXT, scope TEXT, bin_type TEXT, bin_value TEXT, grp TEXT,
+  tier TEXT, n INTEGER, n_sig INTEGER, note TEXT
 );
 
 DROP VIEW IF EXISTS team_game_weather;

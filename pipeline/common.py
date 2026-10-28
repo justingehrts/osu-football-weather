@@ -14,6 +14,8 @@ CONFIG_DIR = ROOT / "config"
 DATA_DIR = ROOT / "data"
 CACHE_DIR = DATA_DIR / "cache"
 REPORT_DIR = ROOT / "reports"
+RAW_DIR = DATA_DIR / "raw"            # every CFBD response, committed
+COUNTER_PATH = DATA_DIR / "cfbd_calls.json"
 DB_PATH = DATA_DIR / "osu_weather.db"
 
 
@@ -35,9 +37,16 @@ def connect(db_path=DB_PATH):
     conn.row_factory = sqlite3.Row
     # team_splits is derived (rebuilt every run), so if its layout is old just drop it.
     cols = [r[1] for r in conn.execute("PRAGMA table_info(team_splits)")]
-    if cols and "adj_delta" not in cols:
+    if cols and "ctl_delta" not in cols:
         conn.execute("DROP TABLE team_splits")
     conn.executescript((Path(__file__).parent / "schema.sql").read_text())
+    # tables that already exist in the committed database get any newer columns added in place
+    for table, cols_ in {"games": {"home_class": "TEXT", "away_class": "TEXT"},
+                         "venues": {"first_seen": "TEXT"}}.items():
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for col, typ in cols_.items():
+            if col not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
     return conn
 
 
@@ -66,8 +75,12 @@ def current_season(today=None):
 
 
 def tracked_teams():
-    """Ohio State + the frozen opponent list (+ any hand-added extras)."""
+    """Focal team + every opponent on its configured season's schedule (+ extras - excluded)."""
     cfg = load_yaml("teams.yaml")
-    opp = load_yaml("opponents.yaml").get("opponents", [])
-    teams = [cfg["focal_team"]] + list(opp) + list(cfg.get("extra_teams") or [])
-    return list(dict.fromkeys(teams))  # de-dupe, keep order
+    res = load_yaml("opponents.yaml")
+    if res and res.get("season") != cfg["season"]:
+        raise SystemExit(f"config/opponents.yaml is for season {res.get('season')} but teams.yaml says "
+                         f"{cfg['season']}. Run `python -m pipeline.resolve_opponents --force`.")
+    teams = [cfg["focal_team"]] + list(res.get("opponents", [])) + list(cfg.get("extra_teams") or [])
+    drop = set(cfg.get("exclude_teams") or [])
+    return [t for t in dict.fromkeys(teams) if t not in drop]  # de-dupe, keep order

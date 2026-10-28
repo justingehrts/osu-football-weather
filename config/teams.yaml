@@ -1,9 +1,12 @@
 # Which teams the pipeline tracks. Names must match CollegeFootballData
 # ("school") spelling exactly, e.g. "Ohio State", "Michigan".
+#
+# The tracked list = focal team + EVERY opponent on the focal team's `season`
+# schedule (resolved from CFBD into config/opponents.yaml) + extra_teams - exclude_teams.
+# To move to a new season or team: change these values and run
+#   python -m pipeline.resolve_opponents --force
 focal_team: Ohio State
-first_season: 2015
-next_opponents: 3        # how many upcoming opponents to track
-
-# Extra teams to track by hand (optional). The auto-resolved opponents live
-# in config/opponents.yaml, which is generated -- do not hand-edit that one.
-extra_teams: []
+season: 2026             # whose schedule defines the team list
+first_season: 2015       # history loaded from here
+extra_teams: []          # add teams by hand
+exclude_teams: []        # drop teams the schedule would otherwise add

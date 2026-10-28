@@ -8,7 +8,7 @@ from . import build_venues, compute_splits, ingest_games, ingest_obs, ingest_rat
 from .common import CONFIG_DIR, connect
 
 
-def main(argv):
+def main(argv, client=None):
     if not (CONFIG_DIR / "opponents.yaml").exists():
         if "--resolve-if-missing" in argv:
             resolve_opponents.run()

@@ -34,3 +34,22 @@ stats:
   bootstrap_resamples: 2000
   bootstrap_seed: 20261028       # fixed so re-running the pipeline gives identical intervals
   min_games_for_adjustment: 20   # need at least this many games to fit the opponent-strength line
+
+# --- added in milestone 3 (scaling + controlled model + call budget) ---
+cfbd:
+  free_tier_monthly_limit: 1000   # what CFBD allows on the free plan
+  monthly_cap: 600                # OUR hard stop: a run aborts if it would take the month's total past this
+  ask_if_plan_exceeds: 500        # a plan bigger than this must be approved by the owner first
+  current_season_ttl_hours: 20    # in-season responses can change, so they may be re-requested after this
+  week_vs_team_slack: 1.25        # use by-week requests unless they cost >25% more calls than by-team
+  load_history_for_non_fbs: false # FCS opponents: keep the games, skip their (rarely available) history
+controls:                         # the "controlled" model: opponent strength + month + home/away
+  month_buckets: {oct: [10], nov: [11], dec_jan: [12, 1, 2]}   # Aug-Sep is the baseline bucket
+  ridge: 0.000001                 # tiny stabiliser so an empty bucket can't break the fit
+  bootstrap_resamples: 1000
+tiers:
+  lean_min_z: 1.0                 # a "lean" must be at least ~1 standard error in size (else coin-flip signs count)
+iem:
+  chunk_years: 4                  # one ASOS request covers this many seasons per station
+report:
+  new_venues_since: "2026-10-28"  # venues first seen on/after this date are marked NEW in the report
