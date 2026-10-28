@@ -49,6 +49,7 @@ def connect(db_path=DB_PATH):
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
                 if col == "first_seen":     # venues that existed before this column were loaded earlier
                     conn.execute("UPDATE venues SET first_seen = '2026-10-27' WHERE first_seen IS NULL")
+    conn.commit()      # without this the in-place migration above was silently rolled back on close
     return conn
 
 

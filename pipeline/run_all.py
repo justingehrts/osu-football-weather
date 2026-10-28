@@ -38,6 +38,7 @@ def main(argv, client=None):
         record["calls"] = client.counter.used - start_calls
         record["by_endpoint"] = dict(client.by_endpoint)
         (DATA_DIR / "last_run.json").write_text(json.dumps(record, indent=1))
+    report.run(connect(), calls_used=record["calls"])   # after the record, so the report can show planned vs used
     print(f"\nCFBD calls this run: {record['calls']}; month total: {client.counter.used} (cap {client.counter.cap})")
 
 
@@ -71,7 +72,6 @@ def _run(argv, client, bins, record):
     build_venues.run(conn, client)
     ingest_obs.run(conn)                              # IEM: no CFBD calls
     compute_splits.run(conn)
-    report.run(conn, calls_used=client.counter.used)
 
 
 if __name__ == "__main__":

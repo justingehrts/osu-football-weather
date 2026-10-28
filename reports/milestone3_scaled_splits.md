@@ -1,6 +1,6 @@
 # Milestone 3: scaled splits, controlled model, evidence tiers
 
-_Generated 2026-10-28 20:27 UTC._
+_Generated 2026-10-28 20:28 UTC._
 
 > **EXPLORATORY.** This report tests many team × bin × metric cells. At a 90% level roughly 1 in 10 intervals will exclude zero by luck alone, so a starred (\*) delta or a "leans" tier is a lead to check, not a finding.
 
@@ -23,6 +23,16 @@ _Exploratory: tiers and stars are leads to check, not findings._
 
 - Month (2026-10) total so far: **529** of the 600-call cap (free-tier limit 1000); **471** calls remain before CFBD itself would stop us. CFBD's own `/info` count is the source of truth, and `/info` is not billed.
 - 437 of the month's calls were spent before the counter and raw cache existed (early un-cached runs).
+- **This session's backfill (--skip-ratings): 91 calls** (planned worst case 115, threshold to ask first: 500). Counter went 438 → 529.
+
+| Endpoint | Planned (worst case) | Planned (exact, after /games) | Actually used |
+|---|---|---|---|
+| /games | 22 | 0 | 22 |
+| /games/teams | 46 | 34 | 34 |
+| /ppa/games | 46 | 34 | 34 |
+| /ratings/sp | 0 | 0 | 0 |
+| /venues | 1 | 1 | 1 |
+| **Total** | **115** | **91** | **91** |
 
 ## What changed in the pooled lines: 4 teams → 6 teams
 
@@ -87,7 +97,7 @@ Computed in the pipeline from the **controlled** intervals (opponent strength + 
 | USC | none (88) | none (34) | leans (9) | none (124) | n/a (2) | n/a (5) | n/a (7) | n/a (4) | context (74) | context (43) | n/a (9) | context (52) |
 | Oregon | none (71) | leans (30) | none (20) | none (108) | n/a (8) | leans (5) | none (13) | n/a (7) | leans (89) | **CLEAR** (23) | n/a (2) | leans (25) |
 | Northwestern | none (55) | none (42) | none (31) | none (113) | none (12) | n/a (3) | none (15) | context (18) | context (77) | context (28) | context (5) | context (33) |
-| Nebraska | leans (52) | none (35) | none (44) | none (120) | none (11) |  | none (11) | none (18) | leans (70) | leans (29) | none (14) | leans (43) |
+| Nebraska | leans (52) | none (35) | none (44) | none (120) | none (11) | n/a (0) | none (11) | none (18) | leans (70) | leans (29) | none (14) | leans (43) |
 | Michigan | leans (62) | none (38) | leans (29) | none (119) | none (10) | n/a (6) | none (16) | context (23) | context (70) | context (32) | n/a (4) | context (36) |
 | Pooled (6 teams) | **CLEAR** (389) | none (218) | **CLEAR** (164) | leans (693) | none (56) | **CLEAR** (28) | leans (84) | context (91) | context (450) | context (189) | context (40) | context (229) |
 
@@ -99,7 +109,7 @@ Computed in the pipeline from the **controlled** intervals (opponent strength + 
 | USC | none (88) | none (34) | n/a (9) | none (124) | n/a (2) | n/a (5) | n/a (7) | n/a (4) | context (74) | context (43) | context (9) | context (52) |
 | Oregon | none (71) | none (30) | none (20) | none (108) | n/a (8) | n/a (5) | none (13) | n/a (7) | none (89) | leans (23) | n/a (2) | none (25) |
 | Northwestern | none (55) | none (42) | none (31) | none (113) | none (12) | n/a (3) | none (15) | context (18) | context (77) | context (28) | context (5) | context (33) |
-| Nebraska | leans (52) | none (35) | leans (44) | none (120) | none (11) |  | none (11) | none (18) | **CLEAR** (70) | leans (29) | none (14) | leans (43) |
+| Nebraska | leans (52) | none (35) | leans (44) | none (120) | none (11) | n/a (0) | none (11) | none (18) | **CLEAR** (70) | leans (29) | none (14) | leans (43) |
 | Michigan | leans (62) | none (38) | leans (29) | none (119) | none (10) | n/a (6) | none (16) | context (23) | context (70) | context (32) | n/a (4) | context (36) |
 | Pooled (6 teams) | leans (389) | none (218) | **CLEAR** (164) | none (693) | none (56) | none (28) | none (84) | context (91) | context (450) | context (189) | context (40) | context (229) |
 
@@ -270,15 +280,15 @@ Finished games from the in-progress season count exactly like any other season.
 
 ## Venues: domes, far stations, neutral sites, non-US
 
-77 venues in the table; 77 are NEW since 2026-10-28 (marked **NEW**). Far = nearest ASOS more than 25 mi away.
+77 venues in the table; 18 are NEW since 2026-10-28 (marked **NEW**). Far = nearest ASOS more than 25 mi away.
 
-**Domes (excluded from weather splits):** Caesars Superdome **NEW**; Alamodome **NEW**; AT&T Stadium **NEW**; Ford Field **NEW**; Lucas Oil Stadium **NEW**; NRG Stadium **NEW**; State Farm Stadium **NEW**; Mercedes-Benz Stadium **NEW**; Allegiant Stadium **NEW**
+**Domes (excluded from weather splits):** Caesars Superdome; Alamodome; AT&T Stadium; Ford Field; Lucas Oil Stadium; NRG Stadium **NEW**; State Farm Stadium; Mercedes-Benz Stadium; Allegiant Stadium
 
-**Far stations (> 25 mi):** Lane Stadium **NEW** (25.3 mi to ROA); Peden Stadium **NEW** (35.3 mi to PKB)
+**Far stations (> 25 mi):** Lane Stadium (25.3 mi to ROA); Peden Stadium **NEW** (35.3 mi to PKB)
 
-**Neutral-site venues:** Cotton Bowl **NEW** (1 game(s)); Rose Bowl **NEW** (6 game(s)); Caesars Superdome **NEW** (1 game(s)); Aviva Stadium **NEW** (1 game(s)); Alamodome **NEW** (3 game(s)); GEHA Field at Arrowhead Stadium **NEW** (1 game(s)); AT&T Stadium **NEW** (9 game(s)); Ford Field **NEW** (1 game(s)); Nissan Stadium **NEW** (2 game(s)); Lucas Oil Stadium **NEW** (9 game(s)); Raymond James Stadium **NEW** (3 game(s)); NRG Stadium **NEW** (1 game(s)); Sam Boyd Stadium **NEW** (1 game(s)); Qualcomm Stadium **NEW** (3 game(s)); Soldier Field **NEW** (1 game(s)); Hard Rock Stadium **NEW** (4 game(s)); State Farm Stadium **NEW** (6 game(s)); Camping World Stadium **NEW** (4 game(s)); Yankee Stadium **NEW** (2 game(s)); Petco Park **NEW** (2 game(s)); Wrigley Field **NEW** (6 game(s)); Levi's Stadium **NEW** (5 game(s)); Mercedes-Benz Stadium **NEW** (5 game(s)); Lanny and Sharon Martin Stadium **NEW** (5 game(s)); Allegiant Stadium **NEW** (7 game(s))
+**Neutral-site venues:** Cotton Bowl **NEW** (1 game(s)); Rose Bowl (6 game(s)); Caesars Superdome (1 game(s)); Aviva Stadium (1 game(s)); Alamodome (3 game(s)); GEHA Field at Arrowhead Stadium **NEW** (1 game(s)); AT&T Stadium (9 game(s)); Ford Field (1 game(s)); Nissan Stadium (2 game(s)); Lucas Oil Stadium (9 game(s)); Raymond James Stadium (3 game(s)); NRG Stadium **NEW** (1 game(s)); Sam Boyd Stadium (1 game(s)); Qualcomm Stadium (3 game(s)); Soldier Field (1 game(s)); Hard Rock Stadium (4 game(s)); State Farm Stadium (6 game(s)); Camping World Stadium (4 game(s)); Yankee Stadium (2 game(s)); Petco Park (2 game(s)); Wrigley Field (6 game(s)); Levi's Stadium (5 game(s)); Mercedes-Benz Stadium (5 game(s)); Lanny and Sharon Martin Stadium (5 game(s)); Allegiant Stadium (7 game(s))
 
-**Non-US venues (no US station used; those games are excluded):** Aviva Stadium **NEW**
+**Non-US venues (no US station used; those games are excluded):** Aviva Stadium
 
 ## Per team
 

@@ -207,7 +207,7 @@ def tier_section(tiers, teams, bins, k):
             cells = []
             for bt, bv in cols:
                 r = t[(t.team == team) & (t.bin_type == bt) & (t.bin_value == bv) & (t.grp == grp)]
-                cells.append("" if r.empty else TIER_SHORT[r.iloc[0].tier] + f" ({int(r.iloc[0].n)})")
+                cells.append("n/a (0)" if r.empty else TIER_SHORT[r.iloc[0].tier] + f" ({int(r.iloc[0].n)})")
             out.append(f"| {name(team, k)} | " + " | ".join(cells) + " |")
         out.append("")
     ctx = t[(t.tier == "context_only")].groupby("team").size()
