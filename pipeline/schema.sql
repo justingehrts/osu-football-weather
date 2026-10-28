@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS team_ratings (
 --   delta     = raw (vs team's flat average)
 --   adj_delta = vs expected given opponent strength only
 --   ctl_delta = bin effect with opponent strength + month + home/away held fixed
--- *_lo/_hi = bootstrap interval; sig_* = 1 if it excludes zero. team '__POOLED__' = all
+-- *_lo/_hi = bootstrap interval; sig_* = 1 if it excludes zero.
+--   (delta/adj_delta/ctl_delta are 'vs the team's overall average'; *_rest columns are 'vs all other games') team '__POOLED__' = all
 -- tracked teams together (n_teams says how many).
 CREATE TABLE IF NOT EXISTS team_splits (
   team TEXT, scope TEXT, bin_type TEXT, bin_value TEXT, metric TEXT,
@@ -67,8 +68,17 @@ CREATE TABLE IF NOT EXISTS team_splits (
   ctl_delta REAL, ctl_lo REAL, ctl_hi REAL,
   n INTEGER, n_adj INTEGER, n_ctl INTEGER, n_teams INTEGER,
   confidence TEXT,
-  sig_raw INTEGER, sig_adj INTEGER, sig_ctl INTEGER
+  sig_raw INTEGER, sig_adj INTEGER, sig_ctl INTEGER,
+  -- the same three comparisons, but against "all OTHER games" (the complement) instead of the
+  -- team's overall average (which includes the bin). rest = raw, adj_rest, ctl_rest.
+  rest_delta REAL, rest_lo REAL, rest_hi REAL,
+  adj_rest REAL, adj_rest_lo REAL, adj_rest_hi REAL,
+  ctl_rest REAL, ctl_rest_lo REAL, ctl_rest_hi REAL,
+  sig_rest INTEGER, sig_adj_rest INTEGER, sig_ctl_rest INTEGER
 );
+-- Copy of team_splits from before the set of loaded teams last changed, so reports can show
+-- "what moved when teams were added". Same columns as team_splits.
+CREATE TABLE IF NOT EXISTS team_splits_prev AS SELECT * FROM team_splits WHERE 0;
 -- Evidence tiers (clear / leans / no_clear_effect / context_only / insufficient), per
 -- metric group: 'passing' = pass yds/att + PPA, 'scoring' = points scored + PPA.
 CREATE TABLE IF NOT EXISTS team_tiers (

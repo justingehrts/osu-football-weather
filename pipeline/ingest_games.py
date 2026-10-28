@@ -18,7 +18,7 @@ team-seasons), which is why the four teams loaded in earlier milestones cost not
 from collections import defaultdict
 
 from .cfbd import CfbdClient, pick
-from .common import connect, current_season, load_bins, load_yaml, tracked_teams
+from .common import connect, current_season, deferred_teams, load_bins, load_yaml, tracked_teams
 
 
 # --------------------------------------------------------------------------- parsing
@@ -149,12 +149,13 @@ def _unlogged_team_seasons(conn, team, cur):
 
 
 def loadable_teams(conn, teams, bins):
-    """Drop FCS teams' history when configured (CFBD rarely has their box scores/PPA)."""
-    if bins["cfbd"]["load_history_for_non_fbs"]:
-        return list(teams)
-    res = load_yaml("opponents.yaml")
-    non_fbs = set(res.get("non_fbs") or [])
-    return [t for t in teams if t not in non_fbs]
+    """The tracked teams we actually load: not deferred (hand-set in opponents.yaml), and not FCS
+    when `load_history_for_non_fbs` is off. Everything downstream works from this list, so a deferred
+    team being absent can never break a stage."""
+    skip = set(deferred_teams())
+    if not bins["cfbd"]["load_history_for_non_fbs"]:
+        skip |= set(load_yaml("opponents.yaml").get("non_fbs") or [])
+    return [t for t in teams if t not in skip]
 
 
 def stats_requests(conn, teams, cur, bins):
@@ -166,13 +167,13 @@ def stats_requests(conn, teams, cur, bins):
     slack = bins["cfbd"]["week_vs_team_slack"]
     reqs = []
     by_season = defaultdict(lambda: defaultdict(set))       # season -> team -> {weeks missing}
-    post_weeks = defaultdict(set)                            # season -> {postseason weeks missing}
+    post = defaultdict(lambda: defaultdict(set))             # season -> team -> {postseason weeks missing}
     for team in teams:
         miss = _missing_games(conn, team)
         unlogged = set(_unlogged_team_seasons(conn, team, cur))
         for gid, season, week, stype in miss:
             if stype == "postseason":
-                post_weeks[season].add(week)
+                post[season][team].add(week)
             elif season >= cur or season in unlogged:
                 by_season[season][team].add(week)
     for season, per_team in sorted(by_season.items()):
@@ -185,9 +186,17 @@ def stats_requests(conn, teams, cur, bins):
             for t in sorted(per_team):
                 reqs.append(dict(kind="team", season=season, season_type="regular", team=t,
                                  covers=[(t, season)]))
-    for season, weeks in sorted(post_weeks.items()):
-        for w in sorted(w for w in weeks if w is not None) or [None]:
-            reqs.append(dict(kind="week", season=season, season_type="postseason", week=w, covers=[]))
+    for season, per_team in sorted(post.items()):
+        # Bowl/playoff weeks: one request per WEEK covers every team that played that week; one per
+        # TEAM covers all of that team's postseason games. Same rule as the regular season.
+        weeks = sorted({w for ws in per_team.values() for w in ws if w is not None})
+        if weeks and None not in {w for ws in per_team.values() for w in ws} \
+                and len(weeks) <= slack * len(per_team):
+            for w in weeks:
+                reqs.append(dict(kind="week", season=season, season_type="postseason", week=w, covers=[]))
+        else:
+            for t in sorted(per_team):
+                reqs.append(dict(kind="team", season=season, season_type="postseason", team=t, covers=[]))
     return reqs
 
 
@@ -265,7 +274,7 @@ def run(conn=None, client=None, today=None):
     bins, cfg = load_bins(), load_yaml("teams.yaml")
     cur = current_season(today)
     teams = loadable_teams(conn, tracked_teams(), bins)
-    run_stage1(conn, client, tracked_teams(), cfg["first_season"], cur, bins, today)
+    run_stage1(conn, client, teams, cfg["first_season"], cur, bins, today)
     run_stage2(conn, client, teams, cur, bins)
 
 

@@ -22,6 +22,11 @@ are measured against each team's own baseline; CONTROLLED gives each team its ow
 (team fixed effects) with common opponent/month/home controls. The bootstrap resamples whole
 GAMES, because a game between two tracked teams appears once for each side.
 
+Each of the three is reported on TWO yardsticks, and the report labels which is which:
+  "vs the team's average"   bin result minus the team's overall average (the average includes the bin);
+  "vs all other games"      bin result minus the average of every game NOT in the bin (the complement).
+The second is larger by exactly 1/(1 - bin share) and is the more natural "windy vs not windy" reading.
+
 The bootstrap re-draws games with replacement and recomputes each delta; the 5th-95th
 percentiles are the interval. A starred interval excludes zero -- but with hundreds of cells
 tested, about 1 in 10 will do so by luck. Everything here is EXPLORATORY.
@@ -145,16 +150,32 @@ def delta_with_interval(v, masks, counts, level):
     return delta, lo, hi, n
 
 
+def rest_delta_with_interval(v, masks, counts, level):
+    """bin mean minus the mean of all OTHER games (the complement), plus bootstrap interval."""
+    ok = np.isfinite(v)
+    vv = np.where(ok, v, 0.0)
+    m = masks & ok[:, None]
+    o = (~masks) & ok[:, None]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        delta = (m * vv[:, None]).sum(0) / m.sum(0) - (o * vv[:, None]).sum(0) / o.sum(0)
+        w = counts * ok
+        boot = (w @ (m * vv[:, None])) / (w @ m) - (w @ (o * vv[:, None])) / (w @ o)
+    lo, hi = _interval(boot, level)
+    return delta, lo, hi
+
+
 def controlled_effect(y, X0, mask, counts, ridge, level):
     """Effect of `mask` in  y ~ X0 + mask, with a bootstrap interval (see the rescaling note below).
 
     X0 must already include the baseline (an intercept column, or one dummy per team).
-    counts is (B, n). Returns (coef, lo, hi) or NaNs if the bin is empty / everything.
+    counts is (B, n). Returns (coef, lo, hi, coef_rest, lo_rest, hi_rest): the first three on the
+    "vs the team's average" yardstick, the last three on "vs all other games" (the raw coefficient).
+    NaNs if the bin is empty / everything.
     """
     n = len(y)
     nj = int(mask.sum())
     if nj == 0 or nj == n:
-        return np.nan, np.nan, np.nan
+        return (np.nan,) * 6
     X = np.column_stack([X0, mask.astype(float)])
     p = X.shape[1]
     XX = (X[:, :, None] * X[:, None, :]).reshape(n, p * p)     # each game's x xᵀ
@@ -169,13 +190,17 @@ def controlled_effect(y, X0, mask, counts, ridge, level):
     # The regression compares the bin with the games OUTSIDE it. Raw/Adjusted compare the bin with the
     # team's overall average (which includes the bin). The two differ by exactly (1 - bin share), so we
     # rescale: all three columns then answer the same question -- "bin vs the team's average game".
-    coef = solve(np.ones((1, n)))[0, -1] * (1 - nj / n)
+    coef_rest = solve(np.ones((1, n)))[0, -1]
     in_bin = counts @ mask.astype(float)
     share = in_bin / counts.sum(1)
-    beta = solve(counts)[:, -1] * (1 - share)
+    beta = solve(counts)[:, -1]
     present = (in_bin > 0) & (counts @ (1.0 - mask) > 0)
-    lo, hi = _interval(np.where(present, beta, np.nan)[:, None], level)
-    return float(coef), float(lo[0]), float(hi[0])
+    b_rest = np.where(present, beta, np.nan)
+    b_avg = np.where(present, beta * (1 - share), np.nan)
+    lo, hi = _interval(b_avg[:, None], level)
+    lo_r, hi_r = _interval(b_rest[:, None], level)
+    return (float(coef_rest * (1 - nj / n)), float(lo[0]), float(hi[0]),
+            float(coef_rest), float(lo_r[0]), float(hi_r[0]))
 
 
 def excludes_zero(lo, hi):
@@ -222,6 +247,8 @@ def split_rows(label, scope, sdf, bins, n_teams, pooled):
             value_mean = lambda col: float(np.nanmean(v[col]))
         d, lo, hi, n = delta_with_interval(v_raw, M, counts, st["ci_level"])
         ad, alo, ahi, n_adj = delta_with_interval(resid, M, counts, st["ci_level"])
+        rd, rlo, rhi = rest_delta_with_interval(v_raw, M, counts, st["ci_level"])
+        ard, arlo, arhi = rest_delta_with_interval(resid, M, counts, st["ci_level"])
 
         # controlled model: only games with a result AND an opponent rating
         use = np.isfinite(v) & np.isfinite(x)
@@ -235,9 +262,10 @@ def split_rows(label, scope, sdf, bins, n_teams, pooled):
             if n[j] == 0:
                 continue
             mj = M[use, j]
-            c, clo, chi = (np.nan,) * 3
+            c, clo, chi, cr, crlo, crhi = (np.nan,) * 6
             if enough and mj.sum() >= 2:
-                c, clo, chi = controlled_effect(v[use], X0, mj, counts_c[:, use], ctl["ridge"], st["ci_level"])
+                c, clo, chi, cr, crlo, crhi = controlled_effect(v[use], X0, mj, counts_c[:, use],
+                                                                ctl["ridge"], st["ci_level"])
             out.append(dict(
                 team=label, scope=scope, bin_type=bt, bin_value=bv, metric=metric,
                 value=value_mean(M[:, j]) if not pooled else float(np.nanmean(v[M[:, j]])),
@@ -248,7 +276,12 @@ def split_rows(label, scope, sdf, bins, n_teams, pooled):
                 n=int(n[j]), n_adj=int(n_adj[j]), n_ctl=int(mj.sum()), n_teams=n_teams,
                 confidence=confidence(int(n[j]), bins),
                 sig_raw=excludes_zero(lo[j], hi[j]), sig_adj=excludes_zero(alo[j], ahi[j]),
-                sig_ctl=excludes_zero(clo, chi)))
+                sig_ctl=excludes_zero(clo, chi),
+                rest_delta=_f(rd[j]), rest_lo=_f(rlo[j]), rest_hi=_f(rhi[j]),
+                adj_rest=_f(ard[j]), adj_rest_lo=_f(arlo[j]), adj_rest_hi=_f(arhi[j]),
+                ctl_rest=_f(cr), ctl_rest_lo=_f(crlo), ctl_rest_hi=_f(crhi),
+                sig_rest=excludes_zero(rlo[j], rhi[j]), sig_adj_rest=excludes_zero(arlo[j], arhi[j]),
+                sig_ctl_rest=excludes_zero(crlo, crhi)))
     return out
 
 
@@ -321,7 +354,9 @@ def usable_games(conn):
 
 SPLIT_COLS = ["team", "scope", "bin_type", "bin_value", "metric", "value", "baseline", "delta", "delta_lo",
               "delta_hi", "adj_delta", "adj_lo", "adj_hi", "ctl_delta", "ctl_lo", "ctl_hi", "n", "n_adj",
-              "n_ctl", "n_teams", "confidence", "sig_raw", "sig_adj", "sig_ctl"]
+              "n_ctl", "n_teams", "confidence", "sig_raw", "sig_adj", "sig_ctl", "rest_delta", "rest_lo", "rest_hi",
+              "adj_rest", "adj_rest_lo", "adj_rest_hi", "ctl_rest", "ctl_rest_lo", "ctl_rest_hi", "sig_rest",
+              "sig_adj_rest", "sig_ctl_rest"]
 TIER_COLS = ["team", "scope", "bin_type", "bin_value", "grp", "tier", "n", "n_sig", "note"]
 
 
@@ -329,6 +364,13 @@ def run(conn=None):
     conn = conn or connect()
     bins = load_bins()
     splits, tiers = compute(usable_games(conn), bins)
+    # Keep a copy of the previous results whenever the set of loaded teams changes, so the report can
+    # show what moved when teams were added.
+    old = {r[0] for r in conn.execute("SELECT DISTINCT team FROM team_splits")}
+    new = {r["team"] for r in splits}
+    if old and old != new:
+        conn.execute("DELETE FROM team_splits_prev")
+        conn.execute("INSERT INTO team_splits_prev SELECT * FROM team_splits")
     for table, cols, rows in (("team_splits", SPLIT_COLS, splits), ("team_tiers", TIER_COLS, tiers)):
         conn.execute(f"DELETE FROM {table}")  # derived tables: fully rebuilt each run
         conn.executemany(f"INSERT INTO {table}({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",

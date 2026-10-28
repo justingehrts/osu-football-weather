@@ -1,1 +1,1 @@
-info
+run --skip-ratings

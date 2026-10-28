@@ -37,7 +37,7 @@ def connect(db_path=DB_PATH):
     conn.row_factory = sqlite3.Row
     # team_splits is derived (rebuilt every run), so if its layout is old just drop it.
     cols = [r[1] for r in conn.execute("PRAGMA table_info(team_splits)")]
-    if cols and "ctl_delta" not in cols:
+    if cols and "ctl_rest" not in cols:
         conn.execute("DROP TABLE team_splits")
     conn.executescript((Path(__file__).parent / "schema.sql").read_text())
     # tables that already exist in the committed database get any newer columns added in place
@@ -86,3 +86,9 @@ def tracked_teams():
     teams = [cfg["focal_team"]] + list(res.get("opponents", [])) + list(cfg.get("extra_teams") or [])
     drop = set(cfg.get("exclude_teams") or [])
     return [t for t in dict.fromkeys(teams) if t not in drop]  # de-dupe, keep order
+
+
+def deferred_teams():
+    """Tracked teams whose history we have chosen NOT to load yet (config/opponents.yaml `deferred`).
+    They stay on the team list (and in the schedule) but nothing is requested or computed for them."""
+    return list(load_yaml("opponents.yaml").get("deferred") or [])

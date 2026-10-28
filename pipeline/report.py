@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
-from .common import COUNTER_PATH, DATA_DIR, REPORT_DIR, connect, load_bins, load_yaml, tracked_teams
+from .common import COUNTER_PATH, DATA_DIR, REPORT_DIR, connect, deferred_teams, load_bins, load_yaml, tracked_teams
 from .compute_splits import POOLED, bin_masks, usable_games
 from .weather_bins import confidence
 
@@ -29,6 +29,16 @@ TIER_SHORT = {"clear": "**CLEAR**", "leans": "leans", "no_clear_effect": "none",
               "context_only": "context"}
 MONTH_NAMES = {8: "Aug–Sep", 9: "Aug–Sep", 10: "Oct", 11: "Nov", 12: "Dec–Jan", 1: "Dec–Jan"}
 STAR = " \\*"
+# (delta, lo, hi, sig) column names for each estimate on each yardstick
+AVG, REST = "avg", "rest"
+COLS = {AVG: {"raw": ("delta", "delta_lo", "delta_hi", "sig_raw"),
+              "adj": ("adj_delta", "adj_lo", "adj_hi", "sig_adj"),
+              "ctl": ("ctl_delta", "ctl_lo", "ctl_hi", "sig_ctl")},
+        REST: {"raw": ("rest_delta", "rest_lo", "rest_hi", "sig_rest"),
+               "adj": ("adj_rest", "adj_rest_lo", "adj_rest_hi", "sig_adj_rest"),
+               "ctl": ("ctl_rest", "ctl_rest_lo", "ctl_rest_hi", "sig_ctl_rest")}}
+BASIS_TITLE = {AVG: "A. vs the team's OVERALL AVERAGE (the average includes the bin's own games)",
+               REST: "B. vs ALL OTHER GAMES (the complement: games not in the bin)"}
 
 
 def name(team, n_teams=None):
@@ -49,14 +59,16 @@ def short(delta, sig, dec, hide=False):
     return f"{delta:+.{dec}f}" + ("\\*" if sig else "")
 
 
-def triple(r, dec, bins):
-    """raw / adjusted / controlled in one cell."""
+def triple(r, dec, bins, basis=AVG):
+    """raw / adjusted / controlled in one cell, on one yardstick."""
     c = bins["confidence"]
     if r is None or r.n < c["suppress_below_n"]:
         return "—"
-    return " / ".join([short(r.delta, r.sig_raw, dec),
-                       short(r.adj_delta, r.sig_adj, dec, r.n_adj < c["suppress_below_n"]),
-                       short(r.ctl_delta, r.sig_ctl, dec, r.n_ctl < c["suppress_below_n"])])
+    out = []
+    for kind, small in (("raw", False), ("adj", r.n_adj < c["suppress_below_n"]), ("ctl", r.n_ctl < c["suppress_below_n"])):
+        d, _, _, sig = COLS[basis][kind]
+        out.append(short(r[d], r[sig], dec, small))
+    return " / ".join(out)
 
 
 def bin_label(bt, bv):
@@ -70,25 +82,23 @@ def budget_section(calls_used, bins):
         return out + ["_No call counter yet._", ""]
     st = json.loads(COUNTER_PATH.read_text())
     cap, limit = bins["cfbd"]["monthly_cap"], bins["cfbd"]["free_tier_monthly_limit"]
-    out += [f"- This run: **{calls_used if calls_used is not None else 'n/a'}** CFBD calls.",
-            f"- Month ({st['month']}) total so far: **{st['calls']}** of the {cap}-call cap "
-            f"(free-tier limit {limit}). {max(0, limit - st['calls'])} calls remain before CFBD itself would stop us.",
-            "- 437 of those were spent before the call counter and raw cache existed (early un-cached runs).", ""]
-    plan_f = DATA_DIR / "last_plan.json"
-    if plan_f.exists():
-        plan = json.loads(plan_f.read_text())
-        out += ["Planned budget by endpoint (printed before spending):", "", "| Endpoint | Calls | Basis |", "|---|---|---|"]
-        for e, p in plan["plan"].items():
-            out.append(f"| {e} | {p['need']} | {'exact' if p['exact'] else 'worst case'} |")
-        out.append(f"| **Total** | **{plan['total']}** | |")
-        out.append("")
-    tally = {}
-    for _, label in st.get("log", []):
-        if label.startswith("/"):
-            tally[label.split(" ")[0]] = tally.get(label.split(" ")[0], 0) + 1
-    if tally:
-        out += ["Calls logged by the counter this month, by endpoint: " +
-                ", ".join(f"`{k}` {v}" for k, v in sorted(tally.items())), ""]
+    run_f = DATA_DIR / "last_run.json"
+    run = json.loads(run_f.read_text()) if run_f.exists() else None
+    out += [f"- Month ({st['month']}) total so far: **{st['calls']}** of the {cap}-call cap "
+            f"(free-tier limit {limit}); **{max(0, limit - st['calls'])}** calls remain before CFBD itself would stop us. "
+            "CFBD's own `/info` count is the source of truth, and `/info` is not billed.",
+            "- 437 of the month's calls were spent before the counter and raw cache existed (early un-cached runs)."]
+    if run:
+        out += [f"- **This session's backfill ({run['label']}): {run['calls']} calls** "
+                f"(planned worst case {run['planned_total']}, threshold to ask first: {bins['cfbd']['ask_if_plan_exceeds']}). "
+                f"Counter went {run['start']} → {run['end']}.", "",
+                "| Endpoint | Planned (worst case) | Planned (exact, after /games) | Actually used |", "|---|---|---|---|"]
+        for e in ("/games", "/games/teams", "/ppa/games", "/ratings/sp", "/venues"):
+            out.append(f"| {e} | {run['plan_initial'].get(e, 0)} | {run['plan_exact'].get(e, 0)} | {run['by_endpoint'].get(e, 0)} |")
+        out.append(f"| **Total** | **{run['planned_total']}** | **{run['exact_total']}** | **{run['calls']}** |")
+        if run.get("notes"):
+            out += ["", run["notes"]]
+    out.append("")
     return out
 
 
@@ -116,6 +126,7 @@ def schedule_section(conn, bins):
         else:
             status = "**remaining**"
         site = "neutral" if r.neutral_site else ("home" if home else "away")
+        opp = opp + (" _(deferred)_" if opp in set(deferred_teams()) else "")
         out.append(f"| {int(r.week)} | {day} | {opp} | {site} | {r.venue or ''} | {status} |")
     return out + [""]
 
@@ -233,22 +244,28 @@ def pooled_section(sp, tiers, bins):
     k = int(p.n_teams.iloc[0])
     out = [f"## Pooled reference line (all {k} loaded teams together)", "",
            f"Every team-game from the **{k} teams** in the pool, each measured against its own team's baseline. "
-           "Raw / Adjusted / Controlled as defined above; brackets are 90% intervals from a bootstrap over whole games.", ""]
-    for bt, vals in (("wind", ["calm", "moderate", "windy"]), ("precip", ["none", "wet"]),
-                     ("temp", ["cold", "mild", "warm_hot"])):
-        out += [f"**{bt}** (pooled across {k} teams)", "",
-                "| Bin | Metric | n | Raw Δ [90%] | Adj Δ [90%] | Controlled Δ [90%] |", "|---|---|---|---|---|---|"]
-        for bv in vals:
-            for m in KEY_METRICS:
-                r = p[(p.bin_type == bt) & (p.bin_value == bv) & (p.metric == m)]
-                if r.empty:
-                    continue
-                r = r.iloc[0]
-                d = DEC[m]
-                out.append(f"| {bin_label(bt, bv)} | {LABEL[m]} | {r.n} | {fmt(r.delta, r.delta_lo, r.delta_hi, r.sig_raw, d)} | "
-                           f"{fmt(r.adj_delta, r.adj_lo, r.adj_hi, r.sig_adj, d)} | "
-                           f"{fmt(r.ctl_delta, r.ctl_lo, r.ctl_hi, r.sig_ctl, d)} |")
-        out.append("")
+           "Raw / Adjusted / Controlled as defined above; brackets are 90% intervals from a bootstrap over whole games. "
+           "The same numbers are shown on two yardsticks; **steady** rain is kept as its own bin next to the merged **wet** bin.", ""]
+    for basis in (AVG, REST):
+        out += [f"### {BASIS_TITLE[basis]}", ""]
+        for bt, vals in (("wind", ["calm", "moderate", "windy"]), ("precip", ["none", "light", "steady", "wet"]),
+                         ("temp", ["cold", "mild", "warm_hot"])):
+            out += [f"**{bt}** (pooled across {k} teams)", "",
+                    "| Bin | Metric | n | Raw Δ [90%] | Adj Δ [90%] | Controlled Δ [90%] |", "|---|---|---|---|---|---|"]
+            for bv in vals:
+                for m in KEY_METRICS:
+                    r = p[(p.bin_type == bt) & (p.bin_value == bv) & (p.metric == m)]
+                    if r.empty:
+                        continue
+                    r = r.iloc[0]
+                    d = DEC[m]
+                    cells = []
+                    for kind in ("raw", "adj", "ctl"):
+                        dn, lo, hi, sg = COLS[basis][kind]
+                        n_used = {"raw": r.n, "adj": r.n_adj, "ctl": r.n_ctl}[kind]
+                        cells.append(fmt(r[dn], r[lo], r[hi], r[sg], d, n_used < bins["confidence"]["suppress_below_n"]))
+                    out.append(f"| {bin_label(bt, bv)} | {LABEL[m]} | {r.n} | " + " | ".join(cells) + " |")
+            out.append("")
     return out
 
 
@@ -358,37 +375,42 @@ def confounding_table(tdf, bins):
 def team_compact(sp, tdf, team, bins):
     ts = sp[(sp.team == team) & (sp.scope == "all")]
     cols = ["pass_eff", "points", "points_allowed", "ppa_off"]
-    out = ["Each cell: **Raw / Adjusted / Controlled** delta vs the team's own average (\\* = 90% interval excludes zero). "
-           "Intervals are in `milestone3_detail.md`.", "",
-           "| Bin | n | " + " | ".join(LABEL[m] for m in cols) + " |", "|---|---|" + "---|" * len(cols)]
-    for bt, vals in ORDER.items():
-        for bv in vals:
-            r0 = ts[(ts.bin_type == bt) & (ts.bin_value == bv)]
-            if r0.empty:
-                continue
-            n = int(r0.n.max())
-            conf = confidence(n, bins)
-            cells = []
-            for m in cols:
-                r = r0[r0.metric == m]
-                cells.append(triple(r.iloc[0] if not r.empty else None, DEC[m], bins))
-            out.append(f"| {bin_label(bt, bv)} | {n}{'' if conf == 'solid' else f' ({conf})'} | " + " | ".join(cells) + " |")
-    return out + [""]
+    out = ["Each cell: **Raw / Adjusted / Controlled** delta (\\* = 90% interval excludes zero). Two yardsticks are "
+           "shown; intervals are in `milestone3_detail.md`.", ""]
+    for basis in (AVG, REST):
+        out += [f"**{BASIS_TITLE[basis]}**", "",
+                "| Bin | n | " + " | ".join(LABEL[m] for m in cols) + " |", "|---|---|" + "---|" * len(cols)]
+        for bt, vals in ORDER.items():
+            for bv in vals:
+                r0 = ts[(ts.bin_type == bt) & (ts.bin_value == bv)]
+                if r0.empty:
+                    continue
+                n = int(r0.n.max())
+                conf = confidence(n, bins)
+                cells = []
+                for m in cols:
+                    r = r0[r0.metric == m]
+                    cells.append(triple(r.iloc[0] if not r.empty else None, DEC[m], bins, basis))
+                out.append(f"| {bin_label(bt, bv)} | {n}{'' if conf == 'solid' else f' ({conf})'} | " + " | ".join(cells) + " |")
+        out.append("")
+    return out
 
 
 def detail_report(sp, teams, bins):
     out = ["# Milestone 3 detail: every metric, every bin, full intervals", "",
            "_EXPLORATORY._ Raw = vs team's flat average. Adj = given opponent strength. Controlled = opponent strength + month "
            "+ home/away held fixed. Brackets are 90% bootstrap intervals; \\* = excludes zero. n adj / n ctl exclude games "
-           "without an SP+ rating (FCS opponents).", ""]
+           "without an SP+ rating (FCS opponents).", "",
+           "Columns come in two groups: **vs team average** (the team's overall average, which includes the bin) and "
+           "**vs all other games** (the complement). The second is the first divided by (1 - bin share).", ""]
     for team in teams:
         ts = sp[(sp.team == team) & (sp.scope == "all")]
         x20 = sp[(sp.team == team) & (sp.scope == "ex2020")].set_index(["bin_type", "bin_value", "metric"])["n"]
         out += [f"## {name(team, int(ts.n_teams.max()) if not ts.empty else None)}", ""]
         for key, label, dec, note in METRICS:
             out += [f"### {label} ({note})", "",
-                    "| Bin | n | n ex-2020 | n adj | n ctl | Raw Δ [90%] | Adj Δ [90%] | Controlled Δ [90%] |",
-                    "|---|---|---|---|---|---|---|---|"]
+                    "| Bin | n | n ex-2020 | n adj | n ctl | Raw vs avg | Adj vs avg | Ctl vs avg | Raw vs others | Adj vs others | Ctl vs others |",
+                    "|---|---|---|---|---|---|---|---|---|---|---|"]
             for bt, vals in ORDER.items():
                 for bv in vals:
                     r = ts[(ts.bin_type == bt) & (ts.bin_value == bv) & (ts.metric == key)]
@@ -396,14 +418,51 @@ def detail_report(sp, teams, bins):
                         continue
                     r = r.iloc[0]
                     c = bins["confidence"]
-                    hide = r.n < c["suppress_below_n"]
+                    cells = []
+                    for basis in (AVG, REST):
+                        for kind, n_used in (("raw", r.n), ("adj", r.n_adj), ("ctl", r.n_ctl)):
+                            dn, lo, hi, sg = COLS[basis][kind]
+                            cells.append(fmt(r[dn], r[lo], r[hi], r[sg], dec, n_used < c["suppress_below_n"]))
                     out.append(f"| {bin_label(bt, bv)} | {r.n}{'' if r.confidence == 'solid' else f' ({r.confidence})'} | "
-                               f"{int(x20.get((bt, bv, key), 0))} | {r.n_adj} | {r.n_ctl} | "
-                               f"{fmt(r.delta, r.delta_lo, r.delta_hi, r.sig_raw, dec, hide)} | "
-                               f"{fmt(r.adj_delta, r.adj_lo, r.adj_hi, r.sig_adj, dec, r.n_adj < c['suppress_below_n'])} | "
-                               f"{fmt(r.ctl_delta, r.ctl_lo, r.ctl_hi, r.sig_ctl, dec, r.n_ctl < c['suppress_below_n'])} |")
+                               f"{int(x20.get((bt, bv, key), 0))} | {r.n_adj} | {r.n_ctl} | " + " | ".join(cells) + " |")
             out.append("")
     return "\n".join(out) + "\n"
+
+
+def changes_section(conn, sp, bins):
+    """What moved in the pooled lines when teams were added (needs the saved previous results)."""
+    prev = pd.read_sql_query("SELECT * FROM team_splits_prev", conn)
+    if prev.empty:
+        return []
+    old_teams = sorted(set(prev.team) - {POOLED})
+    new_teams = sorted(set(sp.team) - {POOLED} - set(old_teams))
+    pn = prev[prev.team == POOLED].n_teams
+    k_old = int(pn.iloc[0]) if len(pn) else len(old_teams)
+    k_new = int(sp[sp.team == POOLED].n_teams.iloc[0]) if (sp.team == POOLED).any() else len(old_teams) + len(new_teams)
+    out = [f"## What changed in the pooled lines: {k_old} teams → {k_new} teams", "",
+           f"Added: {', '.join(new_teams) or 'none'}. Controlled Δ **vs the team's overall average** (same yardstick as the pooled tables above); "
+           "n is the pooled game count; \\* = 90% interval excludes zero.", "",
+           "| Bin | Metric | Before: n | Before | After: n | After |", "|---|---|---|---|---|---|"]
+    for bt, bv in (("wind", "windy"), ("precip", "wet"), ("precip", "steady"), ("temp", "cold"), ("temp", "warm_hot")):
+        for m in KEY_METRICS:
+            a = prev[(prev.team == POOLED) & (prev.scope == "all") & (prev.bin_type == bt) & (prev.bin_value == bv) & (prev.metric == m)]
+            b = sp[(sp.team == POOLED) & (sp.scope == "all") & (sp.bin_type == bt) & (sp.bin_value == bv) & (sp.metric == m)]
+            if a.empty or b.empty:
+                continue
+            a, b = a.iloc[0], b.iloc[0]
+            out.append(f"| {bin_label(bt, bv)} | {LABEL[m]} | {a.n} | {fmt(a.ctl_delta, a.ctl_lo, a.ctl_hi, a.sig_ctl, DEC[m])} | "
+                       f"{b.n} | {fmt(b.ctl_delta, b.ctl_lo, b.ctl_hi, b.sig_ctl, DEC[m])} |")
+    return out + [""]
+
+
+def season_counts_section(usable):
+    out = ["## Games by season (usable outdoor team-games)", "",
+           "Finished games from the in-progress season count exactly like any other season.", "",
+           "| Season | " + " | ".join(sorted(usable.team.unique())) + " |", "|---|" + "---|" * usable.team.nunique()]
+    for season, g in usable.groupby("season"):
+        row = [str(int((g.team == t).sum())) for t in sorted(usable.team.unique())]
+        out.append(f"| {season}{' (in progress)' if season == usable.season.max() and season >= 2026 else ''} | " + " | ".join(row) + " |")
+    return out + [""]
 
 
 def build(conn, bins, calls_used=None):
@@ -413,24 +472,34 @@ def build(conn, bins, calls_used=None):
     out = ["# Milestone 3: scaled splits, controlled model, evidence tiers", "",
            f"_Generated {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC._", "",
            "> **EXPLORATORY.** This report tests many team × bin × metric cells. At a 90% level roughly 1 in 10 intervals will "
-           "exclude zero by luck alone, so a starred (\\*) delta or a \"leans\" tier is a lead to check, not a finding.", ""]
+           "exclude zero by luck alone, so a starred (\\*) delta or a \"leans\" tier is a lead to check, not a finding.", "",
+           "**Two yardsticks, always labelled.** *A. vs the team's overall average* compares a bin to all of the team's games, "
+           "including the bin itself. *B. vs all other games* compares the bin to the games NOT in it (\"windy vs not windy\"); "
+           "it is the A number divided by (1 − the bin's share of games). Evidence tiers use the controlled model, where the "
+           "choice of yardstick does not change the verdict.", ""]
     if sp.empty:
         return "\n".join(out + ["**No splits yet.**"]), ""
     have = sorted(set(sp.team) - {POOLED})
-    if set(tracked) - set(have):
-        out += [f"> ⚠️ **PREVIEW.** Only {len(have)} of the {len(tracked)} tracked teams have data loaded ({', '.join(have)}). "
-                f"Missing: {', '.join(sorted(set(tracked) - set(have)))}. The expansion is waiting on CFBD call budget.", ""]
+    deferred = [t for t in tracked if t in set(deferred_teams())]
+    missing = sorted(set(tracked) - set(have) - set(deferred))
+    out += [f"**Teams loaded ({len(have)}):** {', '.join(have)}. **Deferred by choice ({len(deferred)}):** "
+            f"{', '.join(deferred) or 'none'} -- not loaded (their 2026 games are already played, so they only matter for "
+            "the Team Explorer); nothing here depends on them.", ""]
+    if missing:
+        out += [f"> ⚠️ **PREVIEW.** These tracked teams have no data yet: {', '.join(missing)}.", ""]
     teams = [t for t in tracked if t in have] + ([POOLED] if POOLED in set(sp.team) else [])
     usable = usable_games(conn)
 
     out += summary_section(sp, tiers, teams, bins)
     out += budget_section(calls_used, bins)
+    out += changes_section(conn, sp, bins)
     out += schedule_section(conn, bins)
     k = int(sp[sp.team == POOLED].n_teams.iloc[0]) if POOLED in set(sp.team) else None
     out += tier_section(tiers, teams, bins, k)
     out += pooled_section(sp, tiers, bins)
     out += control_effect_section(sp, bins)
     out += rating_section(usable, bins)
+    out += season_counts_section(usable)
     out += venue_section(conn, bins)
     out += ["## Per team", "", "Month/home/opponent mix of each bin first (what the bin is secretly measuring), then the effects.", ""]
     for team in [t for t in teams if t != POOLED]:

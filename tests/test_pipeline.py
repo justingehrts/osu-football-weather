@@ -443,3 +443,80 @@ def test_resolve_opponents_from_games_and_flags_non_fbs():
     games[2]["awayClassification"] = "fcs"
     opps, non_fbs = resolve_opponents.opponents_from_games(games, "Ohio State")
     assert opps == ["Ball State", "Texas", "Youngstown State"] and non_fbs == ["Youngstown State"]
+
+
+# ----------------------------------------------------------------- deferral, complement, 2026
+def test_deferred_teams_are_not_loaded_but_stay_on_the_list(monkeypatch):
+    import pipeline.ingest_games as ig
+    monkeypatch.setattr(ig, "deferred_teams", lambda: ["Ball State"])
+    monkeypatch.setattr(ig, "load_yaml", lambda n: {"non_fbs": []})
+    conn = connect(":memory:")
+    assert ig.loadable_teams(conn, ["Ohio State", "Ball State", "Michigan"], BINS) == ["Ohio State", "Michigan"]
+    # a game vs a deferred team produces no stat requests for that team, and nothing raises
+    conn.execute("INSERT INTO games(game_id,season,week,season_type,completed,home_team,away_team) "
+                 "VALUES (1,2026,1,'regular',1,'Ohio State','Ball State')")
+    assert {r.get("team") for r in ig.stats_requests(conn, ["Ohio State"], 2026, BINS)} <= {None, "Ohio State"}
+
+
+def test_resolve_keeps_deferred_choice(monkeypatch, tmp_path):
+    import yaml
+    monkeypatch.setattr(resolve_opponents, "OUT", tmp_path / "opponents.yaml")
+    monkeypatch.setattr(resolve_opponents, "load_yaml", lambda n: (
+        {"focal_team": "Ohio State", "season": 2026} if n == "teams.yaml" else {"deferred": ["Ball State", "Gone U"]}))
+
+    class C:
+        def games(self, *a, **k): return [_g(1, 2026, 1, "Ohio State", "Ball State"), _g(2, 2026, 2, "Texas", "Ohio State")]
+    out = resolve_opponents.run(force=True, client=C())
+    assert out["deferred"] == ["Ball State"]            # kept; names no longer on the schedule are dropped
+
+
+def test_report_survives_missing_deferred_teams_and_shows_steady_and_both_yardsticks(monkeypatch):
+    monkeypatch.setattr(report, "deferred_teams", lambda: ["Ball State"])
+    monkeypatch.setattr(report, "tracked_teams", lambda: ["A", "B", "Ball State"])
+    conn = _fake_db()
+    conn.execute("UPDATE weather_obs SET precip_bin='steady', precip_in_total=0.3 WHERE game_id <= 7")
+    conn.execute("INSERT INTO team_games SELECT game_id,'B','A','away',20,60,20,100,30,150,1,NULL FROM games")
+    conn.commit()
+    compute_splits.run(conn)
+    main, detail = report.build(conn, BINS)
+    assert "Deferred by choice (1):** Ball State" in main
+    assert "precip: steady" in main and "precip: wet" in main                      # both bins side by side
+    assert "A. vs the team's OVERALL AVERAGE" in main and "B. vs ALL OTHER GAMES" in main
+    assert "Raw vs others" in detail and "Ctl vs avg" in detail
+    assert "PREVIEW" not in main                                                   # deferred is not 'missing'
+
+
+def test_complement_is_the_average_comparison_divided_by_one_minus_share():
+    df, warm = _world(3.0)
+    rows = pd.DataFrame(compute_splits.split_rows("A", "all", df, BINS, 1, False))
+    r = rows[(rows.bin_value == "warm") & (rows.metric == "points")].iloc[0]
+    share = r.n / len(df)
+    assert r.rest_delta == pytest.approx(r.delta / (1 - share))
+    assert r.adj_rest == pytest.approx(r.adj_delta / (1 - share), rel=1e-6)
+    assert r.ctl_delta == pytest.approx(r.ctl_rest * (1 - r.n / len(df)))      # all games rated in this fake world
+    assert r.rest_lo < r.rest_delta < r.rest_hi
+
+
+def test_finished_current_season_games_count_like_any_other():
+    conn = _fake_db()
+    conn.execute("UPDATE games SET season = 2026 WHERE game_id IN (1, 2, 3)")
+    conn.commit()
+    usable = compute_splits.usable_games(conn)
+    assert (usable.season == 2026).sum() == 3
+    rows, _ = compute_splits.compute(usable, BINS)
+    allrow = [r for r in rows if r["team"] == "A" and r["scope"] == "all" and r["bin_value"] == "windy"
+              and r["metric"] == "points"][0]
+    assert allrow["n"] == 9                                   # the three 2026 windy games are in the count
+    assert "2026 (in progress)" in "\n".join(report.season_counts_section(usable))
+
+
+def test_changes_section_compares_before_and_after_pool():
+    conn = _fake_db()
+    compute_splits.run(conn)                                   # pool of one team: no pooled rows yet
+    conn.execute("INSERT INTO team_games SELECT game_id,'B','A','away',20,60,20,100,30,150,1,NULL FROM games")
+    conn.commit()
+    compute_splits.run(conn)                                   # team set changed -> snapshot taken
+    compute_splits.run(conn)                                   # set unchanged -> snapshot kept
+    sp = pd.read_sql_query("SELECT * FROM team_splits", conn)
+    prev = pd.read_sql_query("SELECT * FROM team_splits_prev", conn)
+    assert set(prev.team) == {"A"} and set(sp.team) == {"A", "B", compute_splits.POOLED}

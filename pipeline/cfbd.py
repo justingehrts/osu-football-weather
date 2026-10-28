@@ -15,6 +15,7 @@ stays accurate.
 """
 import json
 import os
+from collections import Counter
 from datetime import datetime, timezone
 from urllib.parse import quote
 
@@ -68,9 +69,8 @@ class CallCounter:
         self.save()
 
     def sync(self, api_used):
-        """Trust CFBD's own count if it is higher than ours (other tools share the quota)."""
-        if api_used > self.state["calls"]:
-            self.state["calls"] = api_used
+        """CFBD's own count is the truth (other tools share the quota; /info itself is not billed)."""
+        self.state["calls"] = api_used
         self.state["synced_with_cfbd"] = self.now().isoformat(timespec="seconds")
         self.save()
 
@@ -89,6 +89,7 @@ class CfbdClient:
         self.ttl_default = load_bins()["cfbd"]["current_season_ttl_hours"]
         self.session = session
         self.requests_sent = 0
+        self.by_endpoint = Counter()      # calls actually sent by this client, per endpoint
 
     # ---- cache ----
     def cache_path(self, path, params):
@@ -115,6 +116,7 @@ class CfbdClient:
         self._ensure_session()
         self.counter.record(f"{path} {params}")       # count first: a failed call may still be billed
         self.requests_sent += 1
+        self.by_endpoint[path] += 1
         r = self.session.get(f"{BASE}{path}", params=params, timeout=90)
         r.raise_for_status()
         data = r.json()
@@ -136,7 +138,6 @@ class CfbdClient:
 
     def info(self):
         """Remaining calls according to CFBD itself; also syncs our counter."""
-        self.counter.check(1)
         r = self._raw_get("/info")
         self.counter.sync(r.get("usedCalls", 0))
         return r
@@ -144,7 +145,6 @@ class CfbdClient:
     def _raw_get(self, path):
         # uncached on purpose: the whole point is the live number
         self._ensure_session()
-        self.counter.record(path)
         r = self.session.get(f"{BASE}{path}", timeout=60)
         r.raise_for_status()
         return r.json()

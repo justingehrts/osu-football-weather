@@ -29,15 +29,19 @@ def load_cached_stage1(conn, client, teams, first, cur, bins, today=None):
     return pending
 
 
-def build(conn, client, today=None):
+def _unloaded_seasons(conn, team, first, cur):
+    done = {r[0] for r in conn.execute("SELECT season FROM ingest_log WHERE team=?", (team,))}
+    return [s_ for s_ in range(first, cur) if s_ not in done]
+
+
+def build(conn, client, today=None, skip_ratings=False):
     bins, cfg = load_bins(), load_yaml("teams.yaml")
     cur, first = current_season(today), cfg["first_season"]
-    teams = tracked_teams()
-    pending = load_cached_stage1(conn, client, teams, first, cur, bins, today)
+    loadable = loadable_teams(conn, tracked_teams(), bins)
+    pending = load_cached_stage1(conn, client, loadable, first, cur, bins, today)
     plan = OrderedDict((e, dict(need=0, exact=True)) for e in ENDPOINTS)
     plan["/games"]["need"] = len(pending)
 
-    loadable = loadable_teams(conn, teams, bins)
     if not pending:                                        # stage 2 is exactly knowable
         last_week = conn.execute("SELECT COALESCE(MAX(week),0) FROM games WHERE season=? AND completed=1 "
                                  "AND season_type='regular'", (cur,)).fetchone()[0]
@@ -48,30 +52,18 @@ def build(conn, client, today=None):
     else:                                                  # worst case until stage 1 is loaded
         for path in ("/games/teams", "/ppa/games"):
             plan[path]["exact"] = False
-        past = [s for s, _ in pending if s < cur]
-        for team in loadable:
-            # every past season of a not-yet-loaded team, assumed requested by team
-            seasons = [s for s in range(first, cur) if s not in
-                       {r[0] for r in conn.execute("SELECT season FROM ingest_log WHERE team=?", (team,))}]
-            for path in ("/games/teams", "/ppa/games"):
-                plan[path]["need"] += len(seasons)
-        post_seasons = len({s for s, st in pending if st == "postseason"})
-        for path in ("/games/teams", "/ppa/games"):
-            plan[path]["need"] += 3 * post_seasons          # up to 3 postseason weeks a year
-            plan[path]["need"] += 15                         # current-season weeks (upper bound)
-        del past
-
-    # ratings: seasons not already in the database and not cached
-    have = {r[0] for r in conn.execute("SELECT DISTINCT season FROM team_ratings")}
-    for season in range(first, cur + 1):
-        if season < cur and season in have:
-            continue
-        ttl = bins["cfbd"]["current_season_ttl_hours"] if season >= cur else None
-        if not client.is_cached("/ratings/sp", ttl, year=season):
-            plan["/ratings/sp"]["need"] += 1
+            todo = [t for t in loadable if _unloaded_seasons(conn, t, first, cur)]
+            past = sum(len(_unloaded_seasons(conn, t, first, cur)) for t in todo)      # one request per team-season
+            post_years = len({s for s, st in pending if st == "postseason"})
+            # a postseason year costs at most one request per not-yet-loaded team, or 3 weeks
+            plan[path]["need"] += past + post_years * min(3, len(todo)) + len(todo)    # + current season by team
+    plan["/ratings/sp"]["need"] = sum(
+        0 if (s_ < cur and s_ in {r[0] for r in conn.execute("SELECT DISTINCT season FROM team_ratings")})
+        or (skip_ratings) or client.is_cached("/ratings/sp", None if s_ < cur else bins["cfbd"]["current_season_ttl_hours"], year=s_)
+        else 1 for s_ in range(first, cur + 1))
     if not client.is_cached("/venues"):
         plan["/venues"]["need"] += 1
-    plan["/info"]["need"] = 1
+    plan["/info"]["need"] = 0                              # /info is not billed by CFBD
     return plan, pending
 
 
@@ -80,7 +72,8 @@ def render(plan, counter, cfg_bins):
     lines = ["CFBD call budget for this run", "",
              f"{'endpoint':<14}{'calls':>7}   basis", "-" * 44]
     for e, p in plan.items():
-        lines.append(f"{e:<14}{p['need']:>7}   {'exact' if p['exact'] else 'worst case (exact once /games is loaded)'}")
+        basis = 'free (not billed)' if e == '/info' else ('exact' if p['exact'] else 'worst case (exact once /games is loaded)')
+        lines.append(f"{e:<14}{p['need']:>7}   {basis}")
     lines += ["-" * 44, f"{'TOTAL':<14}{total:>7}", "",
               f"used this month so far : {counter.used}",
               f"after this run         : {counter.used + total}",
@@ -93,7 +86,7 @@ def render(plan, counter, cfg_bins):
 def main(argv):
     conn = connect()
     client = CfbdClient(offline=True)
-    plan, pending = build(conn, client)
+    plan, pending = build(conn, client, skip_ratings='--skip-ratings' in argv)
     text, total = render(plan, client.counter, load_bins())
     print(text)
     return total

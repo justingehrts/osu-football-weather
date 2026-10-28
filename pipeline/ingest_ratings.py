@@ -19,7 +19,7 @@ def parse_rating(rec):
             (rec.get("defense") or {}).get("rating"))
 
 
-def run(conn=None, client=None):
+def run(conn=None, client=None, skip_current=False):
     conn = conn or connect()
     client = client or CfbdClient()
     bins = load_bins()
@@ -27,6 +27,8 @@ def run(conn=None, client=None):
     for season in range(first, now + 1):
         have = conn.execute("SELECT COUNT(*) FROM team_ratings WHERE season=?", (season,)).fetchone()[0]
         if have and season < now:        # finished seasons never change
+            continue
+        if have and skip_current:        # in-progress ratings already on file; don't spend a call refreshing
             continue
         ttl = bins["cfbd"]["current_season_ttl_hours"] if season >= now else None
         recs = client.sp_ratings(season, ttl_hours=ttl)
