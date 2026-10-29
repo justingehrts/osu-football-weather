@@ -536,3 +536,39 @@ def test_refresh_stops_after_one_call_when_nothing_is_new(monkeypatch):
     games.append(_g(4, 2026, 4, "A", "D", completed=False))       # scheduled, not played: ignored
     assert refresh.new_completed_games(conn, games, {"A"}) == [(3, "A")]
     assert refresh.new_completed_games(conn, games, {"Z"}) == []   # other teams' games don't count
+
+
+def test_refresh_summary_says_what_happened_in_plain_words():
+    from pipeline import refresh
+    quiet = refresh.refresh_summary([], [], 1, 530, 600, {"/games": 1})
+    assert "no new completed games" in quiet and "Nothing changed, so nothing was committed" in quiet
+    assert "CFBD calls this run: **1**" in quiet and "530** of the 600-call cap" in quiet
+    changed = refresh.refresh_summary([], ["USC at Ohio State: kickoff TBD -> 2026-11-07T17:00:00Z"], 1, 530, 600)
+    assert "Schedule/score updates" in changed and "kickoff TBD ->" in changed
+    new = refresh.refresh_summary([(1, "Ohio State"), (2, "USC")], [], 6, 536, 600)
+    assert "2 new finished team-games (Ohio State, USC)" in new
+
+
+def test_describe_changes_finds_reschedules_and_scores():
+    from pipeline import refresh
+    conn = connect(":memory:")
+    for gid, k in ((1, None), (2, "2026-11-07T17:00:00Z")):
+        conn.execute("INSERT INTO games(game_id,season,week,season_type,kickoff_utc,completed,home_team,away_team) VALUES (?,2026,9,'regular',?,0,'A','B')", (gid, k))
+    before = conn.execute("SELECT * FROM games ORDER BY game_id").fetchall()
+    conn.execute("UPDATE games SET kickoff_utc='2026-11-07T20:00:00Z' WHERE game_id=1")
+    conn.execute("UPDATE games SET completed=1, home_points=30, away_points=3 WHERE game_id=2")
+    after = conn.execute("SELECT * FROM games ORDER BY game_id").fetchall()
+    out = refresh.describe_changes(before, after)
+    assert out[0].endswith("kickoff TBD -> 2026-11-07T20:00:00Z") and "result/score updated" in out[1]
+    assert refresh.describe_changes(after, after) == []
+
+
+def test_step_summary_writes_only_inside_actions(tmp_path, monkeypatch):
+    from pipeline.common import step_summary
+    f = tmp_path / "summary.md"
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    step_summary("hello")                                  # outside Actions: silently nothing
+    assert not f.exists()
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(f))
+    step_summary("hello")
+    assert "hello" in f.read_text()

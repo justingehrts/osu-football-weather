@@ -41,8 +41,10 @@ jobs:
           git add data reports    # data/ includes the raw CFBD cache, the call counter and the database
           if git diff --cached --quiet; then
             echo "No data changes."
+            echo "- **Data commit:** none (no files changed)." >> "$GITHUB_STEP_SUMMARY"
           else
             git commit -m "Refresh history after new games ($(date -u +%Y-%m-%d))"
             git pull --rebase --autostash
             git push
+            echo "- **Data commit:** pushed to main ($(git diff --name-only HEAD~1 HEAD | wc -l) files)." >> "$GITHUB_STEP_SUMMARY"
           fi
