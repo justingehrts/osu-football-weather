@@ -53,3 +53,15 @@ iem:
   chunk_years: 4                  # one ASOS request covers this many seasons per station
 report:
   new_venues_since: "2026-10-28"  # venues first seen on/after this date are marked NEW in the report
+
+# --- added in milestone 4 (forecast + app) ---
+forecast:
+  horizon_hours: 156              # NWS hourly grid reaches ~6.5 days; a game further out gets "beyond the forecast horizon"
+  precip_prob_middle: [30, 70]    # % chance of rain: below = dry, above = wet, in between = show BOTH side by side
+  min_window_coverage: 0.75       # if the forecast covers less than this share of the game window, treat it as beyond the horizon
+  min_hours_between_snapshots: 3  # re-running the job within this window doesn't add a duplicate row
+  min_hours_between_beyond_horizon_rows: 24
+  user_agent: "osu-football-weather (https://github.com/justingehrts/osu-football-weather)"
+app:
+  clear_signal_min_n: 30          # "Clear signal" needs the pipeline's CLEAR tier AND at least this many games
+  headline_metrics: [pass_eff, points, points_allowed, ppa_off]
