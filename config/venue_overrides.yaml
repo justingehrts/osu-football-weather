@@ -1,0 +1,10 @@
+# Fixes for venue data that CFBD gets wrong. Keyed by CFBD venue id.
+# Anything you set here wins over what CFBD says. Example:
+#
+# 3880:
+#   dome: true                 # e.g. a retractable roof you want treated as indoor
+#   lat: 33.7554               # fix a bad/missing coordinate
+#   lon: -84.4008
+#   station: ATL               # force a specific IEM station id
+#   note: "roof closed for most games"
+{}
