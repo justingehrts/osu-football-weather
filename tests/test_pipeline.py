@@ -520,3 +520,19 @@ def test_changes_section_compares_before_and_after_pool():
     sp = pd.read_sql_query("SELECT * FROM team_splits", conn)
     prev = pd.read_sql_query("SELECT * FROM team_splits_prev", conn)
     assert set(prev.team) == {"A"} and set(sp.team) == {"A", "B", compute_splits.POOLED}
+
+
+# ----------------------------------------------------------------- in-season refresh
+def test_refresh_stops_after_one_call_when_nothing_is_new(monkeypatch):
+    from pipeline import refresh
+    conn = connect(":memory:")
+    for gid, w in ((1, 1), (2, 2)):
+        conn.execute("INSERT INTO games(game_id,season,week,season_type,completed,home_team,away_team) VALUES (?,2026,?, 'regular',1,'A','B')", (gid, w))
+        conn.execute("INSERT INTO team_games(game_id,team,opponent,home_away) VALUES (?,'A','B','home')", (gid,))
+    conn.commit()
+    games = [_g(1, 2026, 1, "A", "B"), _g(2, 2026, 2, "A", "B")]
+    assert refresh.new_completed_games(conn, games, {"A"}) == []
+    games.append(_g(3, 2026, 3, "A", "C"))                       # a finished game with no box score yet
+    games.append(_g(4, 2026, 4, "A", "D", completed=False))       # scheduled, not played: ignored
+    assert refresh.new_completed_games(conn, games, {"A"}) == [(3, "A")]
+    assert refresh.new_completed_games(conn, games, {"Z"}) == []   # other teams' games don't count
