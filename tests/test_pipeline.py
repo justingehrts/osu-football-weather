@@ -541,7 +541,7 @@ def test_refresh_stops_after_one_call_when_nothing_is_new(monkeypatch):
 def test_refresh_summary_says_what_happened_in_plain_words():
     from pipeline import refresh
     quiet = refresh.refresh_summary([], [], 1, 530, 600, {"/games": 1})
-    assert "no new completed games" in quiet and "Nothing changed, so nothing was committed" in quiet
+    assert "no new completed games" in quiet and "No schedule or score changes either" in quiet and "committed" not in quiet
     assert "CFBD calls this run: **1**" in quiet and "530** of the 600-call cap" in quiet
     changed = refresh.refresh_summary([], ["USC at Ohio State: kickoff TBD -> 2026-11-07T17:00:00Z"], 1, 530, 600)
     assert "Schedule/score updates" in changed and "kickoff TBD ->" in changed
@@ -572,3 +572,86 @@ def test_step_summary_writes_only_inside_actions(tmp_path, monkeypatch):
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(f))
     step_summary("hello")
     assert "hello" in f.read_text()
+
+
+
+# ----------------------------------------------------------------- quiet runs must change no files
+def test_reopening_the_database_does_not_change_the_file(tmp_path):
+    import hashlib
+    f = tmp_path / "x.db"
+    connect(f).close()
+    h = lambda: hashlib.sha256(f.read_bytes()).hexdigest()   # noqa: E731
+    first = h()
+    for _ in range(3):
+        c = connect(f)
+        c.close()
+    assert h() == first                                         # a run that changes no data leaves the file byte-identical
+
+
+def test_the_view_is_rebuilt_when_its_definition_changes(tmp_path):
+    f = tmp_path / "x.db"
+    c = connect(f)
+    c.execute("DROP VIEW team_game_weather")
+    c.execute("CREATE VIEW team_game_weather AS SELECT 1 AS stale_column")
+    c.commit(); c.close()
+    cols = [r[1] for r in connect(f).execute("PRAGMA table_info(team_game_weather)")]
+    assert "stale_column" not in cols and "points_allowed" in cols
+
+
+def test_refetching_identical_games_in_a_different_order_leaves_the_cache_file_alone(tmp_path):
+    games = [{"id": 1, "x": "a"}, {"id": 2, "x": "b"}]
+    c, sess, clock = _client(tmp_path, data=games)
+    c.games(2026, "regular", ttl_hours=0, rewrite_if_same=False)
+    f = c.cache_path("/games", {"year": 2026, "seasonType": "regular"})
+    before = f.read_bytes()
+    sess.data = list(reversed(games))                           # same content, CFBD's order shuffled
+    clock[0] += timedelta(hours=1)
+    c.games(2026, "regular", ttl_hours=0, rewrite_if_same=False)
+    assert len(sess.sent) == 2 and f.read_bytes() == before     # it asked again, but changed nothing on disk
+    sess.data = [{"id": 1, "x": "a"}, {"id": 2, "x": "CHANGED"}]
+    clock[0] += timedelta(hours=1)
+    c.games(2026, "regular", ttl_hours=0, rewrite_if_same=False)
+    assert f.read_bytes() != before                             # a real change is still saved
+
+
+def _commit_step_script():
+    import yaml
+    from pathlib import Path
+    wf = yaml.safe_load((Path(__file__).resolve().parents[1] / ".github/workflows/refresh.yml").read_text())
+    step = next(s for s in wf["jobs"]["refresh"]["steps"] if s.get("name") == "Commit updated data")
+    return step["run"]
+
+
+def _run_commit_step(tmp_path, change):
+    """Run the workflow's real commit script in a throwaway repo that has a local 'origin'."""
+    import subprocess
+    sh = lambda *a, cwd=None: subprocess.run(a, cwd=cwd or tmp_path / "work", check=True, capture_output=True, text=True)  # noqa: E731
+    (tmp_path / "origin").mkdir()
+    sh("git", "init", "-q", "--bare", "-b", "main", cwd=tmp_path / "origin")
+    sh("git", "clone", "-q", str(tmp_path / "origin"), "work", cwd=tmp_path)
+    w = tmp_path / "work"
+    (w / "data").mkdir(); (w / "reports").mkdir()
+    (w / "data/cfbd_calls.json").write_text('{"calls": 1}')
+    (w / "data/db.sqlite").write_text("v1")
+    sh("git", "-c", "user.name=t", "-c", "user.email=t@t", "add", "-A"); sh("git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init")
+    sh("git", "push", "-q", "-u", "origin", "HEAD:main")
+    change(w)
+    summary = tmp_path / "summary.md"
+    summary.write_text("")
+    env = {**__import__("os").environ, "GITHUB_STEP_SUMMARY": str(summary)}
+    subprocess.run(["bash", "-e", "-c", _commit_step_script()], cwd=w, env=env, check=True, capture_output=True, text=True)
+    commits = sh("git", "rev-list", "--count", "HEAD").stdout.strip()
+    return int(commits), summary.read_text()
+
+
+def test_workflow_commits_nothing_when_only_the_call_counter_changed(tmp_path):
+    n, summary = _run_commit_step(tmp_path, lambda w: (w / "data/cfbd_calls.json").write_text('{"calls": 2}'))
+    assert n == 1 and "Data commit:** none" in summary           # still just the initial commit
+
+
+def test_workflow_commits_real_changes_and_names_the_files(tmp_path):
+    def change(w):
+        (w / "data/cfbd_calls.json").write_text('{"calls": 9}')
+        (w / "data/db.sqlite").write_text("v2")
+    n, summary = _run_commit_step(tmp_path, change)
+    assert n == 2 and "pushed to main" in summary and "`data/db.sqlite`" in summary

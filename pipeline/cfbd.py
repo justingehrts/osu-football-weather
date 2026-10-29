@@ -106,7 +106,7 @@ class CfbdClient:
         return age.total_seconds() < ttl_hours * 3600
 
     # ---- the one place a request can leave the building ----
-    def get(self, path, ttl_hours=None, **params):
+    def get(self, path, ttl_hours=None, rewrite_if_same=True, **params):
         f = self.cache_path(path, params)
         if self.is_cached(path, ttl_hours, **params):
             return json.loads(f.read_text())["data"]
@@ -120,6 +120,8 @@ class CfbdClient:
         r = self.session.get(f"{BASE}{path}", params=params, timeout=90)
         r.raise_for_status()
         data = r.json()
+        if not rewrite_if_same and f.exists() and _canonical(json.loads(f.read_text())["data"]) == _canonical(data):
+            return data      # same content: leave the file alone so a quiet check produces no change to commit
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(json.dumps({"fetched_at": self.now().isoformat(timespec="seconds"),
                                  "params": params, "data": data}, separators=(",", ":")))
@@ -150,10 +152,10 @@ class CfbdClient:
         return r.json()
 
     # ---- endpoints (names match CFBD) ----
-    def games(self, year, season_type, week=None, team=None, ttl_hours=None):
+    def games(self, year, season_type, week=None, team=None, ttl_hours=None, rewrite_if_same=True):
         p = {"year": year, "seasonType": season_type}
         p.update({k: v for k, v in (("week", week), ("team", team)) if v is not None})
-        return self.get("/games", ttl_hours, **p)
+        return self.get("/games", ttl_hours, rewrite_if_same, **p)
 
     def game_team_stats(self, year, season_type, week=None, team=None, ttl_hours=None):
         p = {"year": year, "seasonType": season_type}
@@ -170,6 +172,13 @@ class CfbdClient:
 
     def venues(self, ttl_hours=None):
         return self.get("/venues", ttl_hours)
+
+
+def _canonical(data):
+    """Order-insensitive form: CFBD returns the same games in a different order from one call to the next."""
+    if isinstance(data, list) and all(isinstance(x, dict) and "id" in x for x in data):
+        data = sorted(data, key=lambda x: x["id"])
+    return json.dumps(data, sort_keys=True)
 
 
 def pick(d, *names, default=None):

@@ -3,14 +3,16 @@
 Runs Saturday night through Monday (see .github/workflows/refresh.yml). The cost is deliberately tiny:
 
   ALWAYS    1 CFBD call: the league-wide games list for this season (never served from the cache,
-            because the whole point is to see what changed).
+            because the whole point is to see what changed). Before it, CFBD's own call count is read
+            (the /info endpoint is not billed) so the month's budget is always the real one.
   ONLY IF new completed games turned up (a game of a loaded team that has no box score yet):
             box scores + PPA for just those games (by week or by team, whichever is cheaper),
             1 call to refresh the current-season SP+ ratings, then the airport weather windows
             (no CFBD calls), and a recompute of the summary tables and report.
 
-If nothing is new it stops after the one call and leaves every file untouched, so a quiet
-Sunday makes no commit. The month's call counter and hard cap apply as always.
+If nothing is new it stops after the one call and leaves every data file untouched (the call
+counter is rebuilt from CFBD at the start of every run, so it is not committed on its own), so a
+quiet Sunday makes no commit. The month's call counter and hard cap apply as always.
 """
 import json
 import sys
@@ -64,7 +66,7 @@ def refresh_summary(new, changes, calls, month_total, cap, by_endpoint=None):
     if changes:
         lines += [f"- Schedule/score updates picked up from CFBD ({len(changes)}):"] + [f"  - {c}" for c in changes]
     elif not new:
-        lines.append("- Nothing changed, so nothing was committed.")
+        lines.append("- No schedule or score changes either.")
     ep = f" ({', '.join(f'{k} x{v}' for k, v in sorted((by_endpoint or {}).items()))})" if by_endpoint else ""
     lines.append(f"- CFBD calls this run: **{calls}**{ep}. Month total: **{month_total}** of the {cap}-call cap.")
     return "\n".join(lines)
@@ -82,9 +84,13 @@ def main(client=None, now=None):
     conn = connect()
     cur = current_season()
     teams = ingest_games.loadable_teams(conn, tracked_teams(), bins)
+    try:
+        client.info()                                                  # free: sets our counter to CFBD's real count
+    except Exception as e:  # noqa: BLE001 - never let a failed lookup stop the refresh; the saved count is the fallback
+        print(f"(could not read CFBD's call count: {type(e).__name__}; using the saved counter)")
     start = client.counter.used
 
-    games = client.games(cur, "regular", ttl_hours=0)                  # THE one call: ttl 0 = always fresh
+    games = client.games(cur, "regular", ttl_hours=0, rewrite_if_same=False)   # THE one call: ttl 0 = always fresh
     new = new_completed_games(conn, games, set(teams))
     before = _games_snapshot(conn, teams, cur)
     ingest_games.store_games(conn, games, set(teams), cur, "regular")  # picks up reschedules and final scores too

@@ -41,7 +41,17 @@ def connect(db_path=DB_PATH):
     cols = [r[1] for r in conn.execute("PRAGMA table_info(team_splits)")]
     if cols and "ctl_rest" not in cols:
         conn.execute("DROP TABLE team_splits")
-    conn.executescript((Path(__file__).parent / "schema.sql").read_text())
+    schema = (Path(__file__).parent / "schema.sql").read_text()
+    split = schema.index("DROP VIEW IF EXISTS team_game_weather;")
+    conn.executescript(schema[:split])                       # tables: CREATE ... IF NOT EXISTS, a no-op once they exist
+    # The view is dropped and recreated ONLY if its definition changed. Doing it on every open rewrote the
+    # database file each time, so even a run that changed no data produced a different 900 KB file to commit.
+    wanted = "CREATE VIEW" + schema[split:].split("CREATE VIEW", 1)[1]
+    have = conn.execute("SELECT sql FROM sqlite_master WHERE type='view' AND name='team_game_weather'").fetchone()
+    norm = lambda t: " ".join(t.replace(";", " ").split())  # noqa: E731
+    if have is None or norm(have[0]) != norm(wanted):
+        conn.execute("DROP VIEW IF EXISTS team_game_weather")
+        conn.executescript(wanted)
     # tables that already exist in the committed database get any newer columns added in place
     for table, cols_ in {"games": {"home_class": "TEXT", "away_class": "TEXT"},
                          "venues": {"first_seen": "TEXT"}}.items():
