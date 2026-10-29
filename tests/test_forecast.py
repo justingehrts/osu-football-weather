@@ -215,3 +215,19 @@ def test_running_the_tests_inside_actions_does_not_pollute_the_real_run_summary(
                           cwd=root, env={**os.environ, "GITHUB_STEP_SUMMARY": str(real_summary)}, capture_output=True, text=True)
     assert done.returncode == 0, done.stdout + done.stderr
     assert real_summary.read_text() == ""
+
+
+def test_hour_by_hour_values_are_kept_for_the_game_window():
+    import json
+    sm = fc.summarize_nws(nws_grid(wind_kmh=30, gust_kmh=48, temp_c=15, pop=40, qpf_mm=6.0), KICK, END)
+    hours = sm["hours"]
+    assert [h["time"][11:16] for h in hours] == ["19:00", "20:00", "21:00", "22:00"]          # kickoff 19:30 -> +3.5 h
+    assert hours[0]["wind"] == pytest.approx(30 * 0.621371, abs=0.1) and hours[0]["gust"] == pytest.approx(48 * 0.621371, abs=0.1)
+    assert hours[0]["pop"] == 40 and hours[0]["temp_f"] == pytest.approx(59.0)
+    assert hours[0]["rain_in"] == pytest.approx(1.0 / 25.4, abs=0.001)                         # 6 mm per 6 h -> 1 mm per hour
+    om = fc.summarize_open_meteo(om_data(wind=22, gust=35, rain=0.05), KICK, END)["hours"]
+    assert len(om) == 4 and om[0]["gust"] == 35
+    # stored with the snapshot, so the app can draw the strip
+    snap = fc.forecast_for_game({"kickoff_utc": "2026-10-31T19:30:00Z", "lat": 40.0, "lon": -83.0},
+                                FakeSession(nws=nws_grid()), BINS, NOW, {})
+    assert len(json.loads(snap["detail"])["hours"]) == 4

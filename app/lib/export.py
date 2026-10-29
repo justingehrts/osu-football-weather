@@ -75,11 +75,13 @@ def render_card_png(view):
     sec = (view.get("sections") or [None])[0]
     if sec:
         y = max(y + 70, 520)                           # cards start below the text, with room for the heading
+        panel_h = min(480, H - 90 - y)                 # never run into the footer line
+        step = (panel_h - 100) // 2
         d.text((80, y - 48), f"{sec['title'].upper()}  ·  vs. all other games", font=_font(30, True), fill=MUTED)
         cols = [(view["focal"], 80), (view["opponent"], 700), (logic.POOLED, 1320)]
         for team, x0 in cols:
             name = f"All {view['pooled_n']} loaded teams" if team == logic.POOLED else team
-            d.rounded_rectangle((x0, y, x0 + 520, y + 440), radius=24, fill=PANEL)
+            d.rounded_rectangle((x0, y, x0 + 520, y + panel_h), radius=24, fill=PANEL)
             if team == logic.POOLED:                      # the reference line stays neutral
                 d.text((x0 + 30, y + 22), name, font=_font(38, True), fill=FG)
             else:
@@ -93,13 +95,18 @@ def render_card_png(view):
                 d.text((x0 + 30, yy), "data not loaded yet", font=_font(32), fill=MUTED)
             for r in rows:
                 d.text((x0 + 30, yy), r.metric_name, font=_font(28), fill=MUTED)
-                d.text((x0 + 30, yy + 36), r.text(), font=_font(48, True), fill=FG)
+                # the change in words ("1.72 fewer yds/pass"), shrunk to fit the panel; the signed number if no words
+                big = r.extra.get("words_short") or r.text()
+                size = next((s for s in (46, 40, 34, 30) if d.textlength(big, font=_font(s, True)) <= 460), 30)
+                d.text((x0 + 30, yy + 36 + (46 - size) // 2), big, font=_font(size, True), fill=FG)
                 bg, fg = CHIP.get(r.label, CHIP[logic.FEW])
                 label = f"{r.label}  ·  n={r.n}"
                 tw = d.textlength(label, font=_font(26, True)) + 28
-                d.rounded_rectangle((x0 + 30, yy + 100, x0 + 30 + tw, yy + 140), radius=20, fill=bg)
-                d.text((x0 + 44, yy + 104), label, font=_font(26, True), fill=fg)
-                yy += 170
+                d.rounded_rectangle((x0 + 30, yy + 96, x0 + 30 + tw, yy + 136), radius=20, fill=bg)
+                d.text((x0 + 44, yy + 100), label, font=_font(26, True), fill=fg)
+                if r.extra.get("game_terms_short"):
+                    d.text((x0 + 30, yy + 144), r.extra["game_terms_short"], font=_font(24), fill=MUTED)
+                yy += step
     d.text((80, H - 60), "Exploratory history, not a prediction. Controlled for opponent strength, month and home/away.",
            font=_font(24), fill=MUTED)
     buf = io.BytesIO()

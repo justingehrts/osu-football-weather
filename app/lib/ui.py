@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # so `lib.*` imports work from pages/
-from lib import colors, config, data, logic                      # noqa: E402
+from lib import charts, colors, config, data, logic, plain      # noqa: E402
 
 CHIP_CLASS = {logic.CLEAR: "clear", logic.LEANS: "leans", logic.NONE: "none", logic.FEW: "few", logic.CONTEXT: "ctx"}
 CSS = """
@@ -24,6 +24,9 @@ CSS = """
 .matchup .at {margin:0 .5rem; font-weight:600; color:#5b6470;}
 .anecdote {border:1px dashed #8a929c; border-radius:.4rem; padding:.35rem .6rem; margin:0 0 .55rem 0;}
 .num {font-size:1.25rem; font-weight:700;}
+.verdict {font-size:.9rem; font-weight:600; color:#5b6470;}
+.gt {font-size:.85rem; color:#3b4652; margin-top:.1rem;}
+.onair {border-left:4px solid #0b4f8a; background:#f3f6fa; padding:.6rem .9rem; border-radius:.3rem; font-size:1.08rem; line-height:1.5; color:#16202b;}
 </style>
 """
 
@@ -108,12 +111,20 @@ def evidence_dialog(team, bin_type, bin_value, scope):
 
 
 def result_row(r):
-    """One metric as ONE compact block (name, number, evidence chip, n), so it stays short on a phone."""
+    """One metric as ONE compact block, so it stays short on a phone:
+    stat name / the change in words (+ better/worse where lower is good) / evidence chip, n and the adjusted number /
+    a small line putting it in game-sized terms next to what the team usually does."""
     if r.status != "ok":
-        right = '<span class="small">data not loaded yet</span>'
+        body = '<span class="small">data not loaded yet</span>'
     else:
-        right = f'<span class="num">{r.text()}</span> &nbsp;{chip(r.label)} &nbsp;<span class="small">n={r.n}</span>'
-    st.markdown(f'<div style="margin:0 0 .55rem 0"><div class="small">{r.metric_name}</div>{right}</div>', unsafe_allow_html=True)
+        said, verdict = r.extra.get("words"), r.extra.get("verdict")
+        top = (f'<span class="num">{said}</span>' + (f' <span class="verdict">({verdict})</span>' if verdict else "")
+               if said else f'<span class="num">{r.text()}</span>')
+        exact = f' &middot; {r.text()}' if said else ""
+        body = f'{top}<br>{chip(r.label)} &nbsp;<span class="small">n={r.n}{exact}</span>'
+        if r.extra.get("game_terms"):
+            body += f'<div class="gt">{r.extra["game_terms"]}</div>'
+    st.markdown(f'<div style="margin:0 0 .7rem 0"><div class="small">{r.metric_name}</div>{body}</div>', unsafe_allow_html=True)
 
 
 def anecdote_row(r, averages):
@@ -167,7 +178,35 @@ def pooled_reference(rows, pooled_n):
     with st.container(border=True):
         st.markdown(f"**Reference: all {pooled_n} loaded teams**" if pooled_n else "**Reference**")
         for r in rows:
-            st.markdown(f"{r.metric_name}: **{r.text()}** &nbsp;(n={r.n}) {chip(r.label)}", unsafe_allow_html=True)
+            said = r.extra.get("words")
+            v = f" ({r.extra['verdict']})" if r.extra.get("verdict") else ""
+            num = f"**{said}**{v} &nbsp;(n={r.n} &middot; {r.text()})" if said else f"**{r.text()}** &nbsp;(n={r.n})"
+            st.markdown(f"{r.metric_name}: {num} {chip(r.label)}", unsafe_allow_html=True)
+
+
+def condition_chart(rows, view, metrics):
+    """The dot-and-range picture for one condition: right is always better, the dashed line is 'no difference'."""
+    df, missing = plain.chart_frame(rows, view["focal"], view["opponent"], view["pooled_n"], metrics)
+    drawn = charts.condition_chart(df)
+    if drawn:
+        legend = " ".join(chip(l) for l in (logic.CLEAR, logic.LEANS, logic.NONE) if l in set(df.label))
+        st.markdown(f'<div class="small">Dot = the change vs. that team\'s other games &middot; bar = how uncertain it is '
+                    f'&middot; dashed line = no difference &middot; <b>right is always better</b>, even for points allowed '
+                    f'&nbsp;{legend}</div><div style="height:.4rem"></div>', unsafe_allow_html=True)
+        # side by side on a wide screen; Streamlit stacks columns on a phone
+        for col, ch in zip(st.columns(len(drawn)), drawn):
+            with col:
+                st.altair_chart(ch, width="stretch")
+        st.caption("A bar that crosses the dashed line means the data can't tell the direction.")
+    if missing:
+        st.caption("Not drawn: " + "; ".join(missing) + ".")
+
+
+def on_air_box(text):
+    st.markdown("**On-air line** <span class='small'>(hedges match the evidence labels)</span>", unsafe_allow_html=True)
+    st.markdown(f'<div class="onair">{text}</div>', unsafe_allow_html=True)
+    with st.expander("Copy the on-air line"):
+        st.code(text, language=None, wrap_lines=True)
 
 
 def intervals_table(rows, pooled_n):

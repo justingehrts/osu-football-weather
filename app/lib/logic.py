@@ -271,10 +271,19 @@ def _groupby(clauses):
 
 
 # --------------------------------------------------------------------------- the card view
-HEADLINE = ["pass_eff", "points", "points_allowed", "ppa_off"]
+HEADLINE = ["pass_eff", "points", "points_allowed", "ppa_off"]      # fallback if bins.yaml has no app.headline_metrics
 
 
-def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side=False, scope="all"):
+def card_metrics(bins):
+    """(headline metrics shown to everyone, 'under the hood' metrics for the stats crowd), from bins.yaml."""
+    app = bins.get("app", {})
+    head = list(app.get("headline_metrics") or HEADLINE)
+    hood = [m for m in (app.get("under_the_hood_metrics") or []) if m not in head]
+    return head, hood
+
+
+def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side=False, scope="all",
+                       typicals=None, first_season=None):
     """Everything the Gameday Card shows, as plain data. The page renders it; the blurb, CSV and PNG
     are made from the very same object, so they can never disagree with what is on screen."""
     focal = teams["focal"]
@@ -307,17 +316,26 @@ def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side
         view["takeaway"] = msgs.get(status, "No forecast is available for this game.") + " Choose conditions under What-If to see how each team has done."
         view["notes"].append((forecast or {}).get("note"))
         return view
+    from . import plain                                   # (imported here: plain builds on this module)
     precip_bins = precip_bins_to_show(cond["precip"], side_by_side)
     view["badges"] = condition_badges(cond["wind"], cond["precip"], cond["temp"], cond["precip_prob"], bins)
+    head, hood = card_metrics(bins)
+    view["headline_metrics"], view["hood_metrics"] = head, hood
     for dim, bvs in (("wind", [cond["wind"]] if cond["wind"] else []), ("precip", precip_bins)):
         for bv in bvs:
             rows = []
             for team in (focal, opp, POOLED):
-                for m in HEADLINE:
+                typical = (typicals or {}).get((team, dim, bv))
+                for m in head + hood:
                     r = stats.result(team, dim, bv, m, scope)
+                    text, verdict = plain.words(r)
+                    r.extra.update(words=text, verdict=verdict, game_terms=plain.game_terms(r, typical),
+                                   game_terms_short=plain.game_terms_short(r, typical), words_short=plain.words(r, short=True)[0])
                     rows.append(r)
             view["sections"].append({"dim": dim, "bin": bv, "title": VS_NOT.get(bv, bv), "rows": rows})
     view["takeaway"] = takeaway(stats, focal, opp, cond["wind"], cond["precip"], bins, cond.get("precip_prob"))
+    view["on_air"] = plain.on_air_line(stats, focal, opp, cond["wind"], cond["precip"], bins, typicals, first_season,
+                                       cond.get("precip_prob"))
     return view
 
 
@@ -329,6 +347,8 @@ def view_rows(view):
             team = f"All {view['pooled_n']} loaded teams" if r.team == POOLED else r.team
             out.append({"game": view["title"], "team": team, "condition": sec["title"], "metric": r.metric_name,
                         "vs_all_other_games": None if r.value is None else round(r.value, 3), "unit": METRIC_INFO[r.metric][1],
+                        "in_words": (r.extra.get("words") or "") + (f" ({r.extra['verdict']})" if r.extra.get("verdict") else ""),
+                        "in_game_terms": r.extra.get("game_terms") or "",
                         "n_games": r.n, "evidence": r.label if r.status == "ok" else "data not loaded yet",
                         "interval_90_lo": None if r.lo is None else round(r.lo, 3), "interval_90_hi": None if r.hi is None else round(r.hi, 3)})
     return out
@@ -349,6 +369,8 @@ def blurb(view):
     lines = [f"{view['title']}" + (f" - {view['venue']}" if view.get("venue") else "")]
     if view["badges"]:
         lines.append("Forecast: " + ", ".join(view["badges"]))
+    if view.get("on_air"):
+        lines.append("On-air line: " + view["on_air"])
     lines += [view["takeaway"], ""]
     for sec in view.get("sections", []):
         lines.append(f"{sec['title'].upper()} (vs. all other games, controlled for opponent, month, home/away)")
@@ -358,7 +380,8 @@ def blurb(view):
             if not rs or rs[0].status == "not_loaded":
                 lines.append(f"  {name}: data not loaded yet")
                 continue
-            lines.append(f"  {name}: " + "; ".join(f"{r.metric_name} {r.text()} (n={r.n}, {r.label})" for r in rs))
+            lines.append(f"  {name}: " + "; ".join(
+                f"{r.metric_name} {r.extra.get('words') or r.text()} (n={r.n}, {r.label})" for r in rs))
         lines.append("")
     lines.append("Exploratory history, not a prediction. Source: OSU Football Weather Splits.")
     return "\n".join(lines).strip()

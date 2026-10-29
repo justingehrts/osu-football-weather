@@ -115,6 +115,21 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
 - FCS games are excluded from adjusted/controlled numbers (no SP+ rating); the Methodology page says so.
 - Played games show results with observed weather; only upcoming games get a forecast. A game beyond the forecast
   horizon says so; a mid-range chance of rain (`forecast.precip_prob_middle`) shows both the dry and the wet history, stacked top to bottom.
+- Broadcast clarity (helpers in `app/lib/plain.py`, charts in `app/lib/charts.py`; no Streamlit import, unit tested):
+  - Numbers are said in words with direction ("1.72 fewer yards per pass"); stats where lower is good add "(better)/(worse)".
+    The exact adjusted number stays beside it, small.
+  - Game-sized translations ("about 55 fewer passing yards a game (-18%) · usually 9.3 yards per pass in other games") combine the
+    adjusted change with the team's PLAIN average in its other games, so they always say "about". Never for Not enough games or
+    the pooled line.
+  - Each condition gets a dot-and-range chart: right is always better (lower-is-better stats are flipped), dashed zero line =
+    no difference, colored by evidence label, pooled line included. Interval NUMBERS never appear in the chart or its tooltips.
+  - The on-air line (wind first, never temperature) maps labels to hedges: Clear signal "has clearly", Leans "has tended to ...
+    but that's only N games" (n < `app.clear_signal_min_n`) or "but it's not a consistent pattern". A toss-up rain chance always
+    gets its own sentence.
+  - Card metrics come from `app.headline_metrics`; offensive PPA (`app.under_the_hood_metrics`) is only in the "Under the hood"
+    expander.
+  - Forecast details: distance to each bin line (borderline margins in `forecast.borderline`; borderline wind/rain shows a
+    warning near the badges), trend across pulls, and the hour-by-hour window (`hours` in the snapshot's `detail` JSON).
 
 ## Style
 - Plain, readable Python; comment the "why" for non-obvious steps.

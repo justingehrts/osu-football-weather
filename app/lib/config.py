@@ -26,5 +26,6 @@ def load_teams():
     tracked = list(dict.fromkeys([t["focal_team"]] + list(o.get("opponents", [])) + list(t.get("extra_teams") or [])))
     tracked = [x for x in tracked if x not in set(t.get("exclude_teams") or [])]
     deferred = [x for x in (o.get("deferred") or []) if x in tracked]
-    return {"focal": t["focal_team"], "season": t["season"], "tracked": tracked, "deferred": deferred,
+    return {"focal": t["focal_team"], "season": t["season"], "first_season": t.get("first_season"),
+            "tracked": tracked, "deferred": deferred,
             "loaded": [x for x in tracked if x not in deferred]}

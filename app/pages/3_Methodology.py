@@ -94,6 +94,27 @@ st.markdown(f"Behind each number is a **{ci}% interval**: re-running the analysi
             "If the range stays on one side of zero the direction is trustworthy; if it crosses zero the data can't tell the direction. "
             "Intervals are in the expanders because the labels already summarise them.")
 
+st.header("Reading the card: words, game-sized numbers, the chart and the on-air line")
+st.markdown(f"""
+- **Words instead of signs.** "1.72 fewer yards per pass" means the same as -1.72 yds/att (the exact number is shown beside it, small).
+  For **points allowed**, where *fewer* is good, the card adds **(better)** or **(worse)** so nobody has to flip a sign in their head.
+- **Game-sized numbers** ("about 55 fewer passing yards a game (-18%) · usually 9.3 yards per pass in other games") multiply the
+  adjusted per-pass change by the team's *plain* average of pass attempts in its other games, and compare points with its plain
+  average in other games. They are **approximate** (an adjusted change next to a plain average), which is why they say "about".
+  They are never computed for "Not enough games" rows or for the all-teams reference line.
+- **The chart** has one dot per team for each stat: the dot is the adjusted change, the bar is the {ci}% range, the dashed line is
+  "no difference" and **right is always better** (the points-allowed axis is flipped). Colors match the evidence labels. A bar that
+  crosses the dashed line means the data can't tell the direction. Rows with too few games are listed under the chart, not drawn.
+- **The on-air line** is built only from wind and rain findings, wind first. Its hedges come straight from the labels:
+  *Clear signal* -> "has clearly ..."; *Leans* -> "has tended to ... but that's only N games" (fewer than {bins['app']['clear_signal_min_n']})
+  or "... but it's not a consistent pattern"; *No clear effect* -> "no consistent effect". A toss-up chance of rain always gets its
+  own sentence. Numbers in it are rounded for speaking; the card has the exact ones.
+- **Under the hood** holds offensive PPA (expected points added per play) for viewers who know it. It already feeds the passing and
+  scoring labels, so moving it off the card changes no label.
+- **Forecast details** shows how close each forecast number is to a bin line (within the margins in `forecast.borderline`, a small
+  forecast change could switch the history used), how the forecast has moved across pulls, and the hour-by-hour game window.
+""")
+
 st.header("Temperature is context only")
 st.markdown("Temperature results are mostly the calendar in disguise (warm = September, cold = November), and even after controls they differ a lot from team to team. "
             "So temperature is **never** in the takeaway or the card headline. You can find it in the Explorer and in an expander labelled "
