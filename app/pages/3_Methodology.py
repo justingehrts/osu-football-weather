@@ -47,7 +47,7 @@ st.markdown(f"""
 | **Snow** | (not a bin) | too rare for statistics, so the actual snow games are listed on the **Evidence** page |
 """)
 lo, hi = bins["forecast"]["precip_prob_middle"]
-st.markdown(f"If the forecast chance of rain is between **{lo}% and {hi}%**, the app doesn't pick: it shows the **dry and wet histories side by side**. "
+st.markdown(f"If the forecast chance of rain is between **{lo}% and {hi}%**, the app doesn't pick: it shows the **dry and wet histories one above the other** (each with the two teams left to right). "
             f"If a game is more than about {bins['forecast']['horizon_hours'] / 24:.1f} days away (as far as the hourly forecast reaches), "
             "it says so instead of guessing.")
 

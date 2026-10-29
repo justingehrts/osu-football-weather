@@ -91,6 +91,8 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
 - **Default yardstick** is the controlled "vs. all other games" number ("windy vs. not windy"), labelled on every
   card. The "vs. the team's overall average" yardstick appears ONLY on the Methodology page and inside expanders;
   never mix the two on one card.
+- Always compare the two teams LEFT to RIGHT (focal team left, opponent right), for every scenario; when there is more
+  than one scenario (e.g. dry and wet), stack the scenarios top to bottom, each with its own left-right comparison.
 - Lead with wind. Each team's own result comes first; the pooled line is a reference labelled "all N loaded teams".
 - Evidence labels (plain language): **Clear signal**, **Leans**, **No clear effect**, **Not enough games**.
   "Clear signal" requires BOTH the pipeline's `clear` tier AND n >= `app.clear_signal_min_n` (30, in bins.yaml);
@@ -112,7 +114,7 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
   revealed numbers; a block with 0 games has nothing to reveal.
 - FCS games are excluded from adjusted/controlled numbers (no SP+ rating); the Methodology page says so.
 - Played games show results with observed weather; only upcoming games get a forecast. A game beyond the forecast
-  horizon says so; a mid-range chance of rain (`forecast.precip_prob_middle`) shows dry and wet side by side.
+  horizon says so; a mid-range chance of rain (`forecast.precip_prob_middle`) shows both the dry and the wet history, stacked top to bottom.
 
 ## Style
 - Plain, readable Python; comment the "why" for non-obvious steps.

@@ -50,7 +50,7 @@ with st.expander("What-If: change the conditions", expanded=bool(ui.qp("wind") o
     wind_pick = c1.selectbox("Wind", list(WIND_OPTS), index=_idx(WIND_OPTS, ui.qp("wind")))
     precip_pick = c2.selectbox("Precipitation", list(PRECIP_OPTS), index=_idx(PRECIP_OPTS, ui.qp("precip")))
     temp_pick = c3.selectbox("Temperature (context only)", list(TEMP_OPTS), index=_idx(TEMP_OPTS, ui.qp("temp")))
-    side_by_side = st.checkbox("Show dry and wet side by side", value=ui.qp("sbs") == "1",
+    side_by_side = st.checkbox("Show both dry and wet histories", value=ui.qp("sbs") == "1",
                                help="Turned on automatically when the chance of rain is in the middle (30-70%).")
     scope_all = st.checkbox("Include the 2020 season (COVID-altered)", value=ui.qp("y2020", "1") != "0")
 what_if = {"wind": WIND_OPTS[wind_pick], "precip": PRECIP_OPTS[precip_pick], "temp": TEMP_OPTS[temp_pick]}
@@ -114,16 +114,18 @@ for sec in [s for s in view["sections"] if s["dim"] == "wind"]:
 
 psecs = [s for s in view["sections"] if s["dim"] == "precip"]
 if psecs:
-    st.markdown("### Precipitation" + (": " + " and ".join(logic.PRECIP_NAME.get(x["bin"], x["bin"]) for x in psecs).replace("Any rain (light + steady)", "any rain") + ", side by side" if len(psecs) > 1 else ""))
+    st.markdown("### Precipitation" + (": " + " and ".join(logic.PRECIP_NAME.get(x["bin"], x["bin"]) for x in psecs).replace("Any rain (light + steady)", "any rain") if len(psecs) > 1 else ""))
     if precip_uncertain or (forecast and forecast.get("precip_uncertain") and not what_if["precip"]):
         st.caption("The chance of rain is in the middle, so both histories are shown rather than picking one.")
-    bin_cols = st.columns(len(psecs))
-    for col, sec in zip(bin_cols, psecs):
-        with col:
-            st.markdown(f"**{logic.PRECIP_NAME.get(sec['bin'], sec['bin'])}** ({sec['title']})")
-            for team in (view["focal"], view["opponent"]):
+    # Same orientation as the wind section: the two teams are always left (focal) and right (opponent). When there is
+    # more than one rain scenario, the scenarios are stacked top to bottom, each with its own left-right comparison.
+    for sec in psecs:
+        st.markdown(f"#### {logic.PRECIP_NAME.get(sec['bin'], sec['bin'])} ({sec['title']})")
+        cols = st.columns(2)
+        for col, team in zip(cols, (view["focal"], view["opponent"])):
+            with col:
                 ui.team_block([r for r in sec["rows"] if r.team == team], team, f"p{sec['bin']}")
-            ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED], pn)
+        ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED], pn)
     if any(s["bin"] == "steady" for s in psecs):
         st.caption("Steady rain is rare, so it is capped at **Leans** and kept separate from light rain.")
 

@@ -375,3 +375,24 @@ def test_show_anyway_starts_off_reveals_plain_averages_and_never_touches_the_tak
     assert "anyway" not in " ".join(at.query_params.keys())                         # session-only: a shared link can't carry it
     fresh = _page_with_a_thin_block()
     assert all(t.value is False for t in fresh.toggle if t.label == "Show anyway")  # a new visitor starts off again
+
+
+def test_teams_are_always_compared_left_to_right_even_with_two_rain_scenarios():
+    """With a toss-up rain chance the card shows a dry AND a wet scenario. Each scenario must compare the two teams side by
+    side (focal left, opponent right) like the wind section does -- never teams stacked inside one column."""
+    at = run_page("app/streamlit_app.py")
+    [s for s in at.selectbox if s.label == "Wind"][0].select("Windy")
+    [s for s in at.selectbox if s.label == "Precipitation"][0].select("Rain possible (show dry and wet)")
+    at.run()
+    assert not at.exception
+    page = " ".join(m.value for m in at.markdown)
+    assert "Dry (dry vs. not dry)" in page and "Any rain (light + steady) (any rain vs. dry games)" in page
+    seen = 0
+    for col in at.columns:
+        chips = [m.value for m in col.markdown if "team-chip" in m.value]
+        assert len(chips) <= 1, f"a column holds {len(chips)} teams: teams are stacked, not side by side"
+        seen += len(chips)
+    assert seen >= 6                                           # wind (2) + dry (2) + wet (2): every block sits in its own column
+    chips = [m.value for m in at.markdown if "team-chip" in m.value and "matchup" not in m.value]
+    focal_first = [("Ohio State" in v) for v in chips]
+    assert focal_first[:6] == [True, False, True, False, True, False]    # per scenario: focal team left, opponent right
