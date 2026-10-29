@@ -90,6 +90,17 @@ class Result:
         return f"{self.value:+.{dec}f} {unit}"
 
 
+def anecdote_text(metric, a):
+    """'Show anyway' wording for one metric: plain averages, no adjustment, named as what they are."""
+    if a is None or a.get("mean_in") is None:
+        return None
+    _, unit, dec, _ = METRIC_INFO[metric]
+    out = f"<b>{a['mean_in']:.{dec}f} {unit}</b> in these {a['n_in']} games"
+    if a.get("mean_other") is not None:
+        out += f" vs. {a['mean_other']:.{dec}f} in this team's other {a['n_other']} games"
+    return out
+
+
 class Stats:
     """Indexed lookups into the pipeline's summary tables."""
 
@@ -272,6 +283,7 @@ def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side
     indoor = game.get("dome") == 1
     view = {"focal": focal, "opponent": opp, "game_id": int(game["game_id"]), "played": played, "indoor": indoor,
             "title": f"{game['away_team']} at {game['home_team']}" if game["site"] != "neutral" else f"{game['away_team']} vs. {game['home_team']} (neutral site)",
+            "away_team": game["away_team"], "home_team": game["home_team"], "joiner": "vs." if game["site"] == "neutral" else "at",
             "venue": game.get("venue"), "kickoff_utc": game.get("kickoff_utc"), "sections": [], "pooled_n": stats.pooled_n,
             "forecast_status": None, "badges": [], "takeaway": "", "notes": []}
     if played:

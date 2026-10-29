@@ -64,7 +64,7 @@ view = logic.build_gameday_view(stats, bins, teams, game, forecast, what_if, sid
 precip_uncertain = view.get("conditions", {}).get("precip") == "uncertain"
 
 # ---- header, forecast, takeaway ---------------------------------------------------------------
-st.subheader(view["title"])
+ui.matchup_header(view)
 meta = " · ".join(x for x in [view.get("venue"), tz_local(game["kickoff_utc"]) if game.get("kickoff_utc") and not game.get("kickoff_tbd") else "kickoff time TBD"] if x)
 st.caption(meta)
 

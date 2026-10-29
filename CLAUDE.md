@@ -103,6 +103,13 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
 - Cold: show the controlled number by default; in an expander show the raw number with the note that raw cold-game
   results look worse because cold games are late-season games against tougher opponents.
 - Interval numbers appear only inside expanders. Every number carries its n.
+- Team names in HEADER places only (the Gameday Card headers and the PNG) are chips in school colors from
+  `config/team_colors.yaml`, each pair chosen for legibility (a test enforces contrast >= 4.5:1 and that every loaded
+  team has colors). Teams without an entry get a neutral chip. The pooled "all N teams" reference stays neutral.
+- "Not enough games" blocks get a per-block **Show anyway** switch. It starts OFF for every visitor (session-only; never
+  in the page address), and when on it shows the PLAIN average of those few games next to the team's other games, in a
+  dashed "anecdote, not a finding" box. The label stays "Not enough games"; the takeaway, blurb, CSV and PNG never use
+  revealed numbers; a block with 0 games has nothing to reveal.
 - FCS games are excluded from adjusted/controlled numbers (no SP+ rating); the Methodology page says so.
 - Played games show results with observed weather; only upcoming games get a forecast. A game beyond the forecast
   horizon says so; a mid-range chance of rain (`forecast.precip_prob_middle`) shows dry and wet side by side.
