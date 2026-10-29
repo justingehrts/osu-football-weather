@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 from . import build_venues, compute_splits, ingest_games, ingest_obs, ingest_ratings, report
 from .cfbd import CfbdClient, pick
-from .common import DATA_DIR, connect, current_season, load_bins, load_yaml, tracked_teams
+from .common import DATA_DIR, connect, current_season, load_bins, load_yaml, step_summary, tracked_teams
 
 
 def new_completed_games(conn, games, teams):
@@ -33,6 +33,41 @@ def new_completed_games(conn, games, teams):
             if team in teams and (g["id"], team) not in have:
                 out.append((g["id"], team))
     return out
+
+
+def describe_changes(before, after, limit=8):
+    """Plain-English list of games whose kickoff time, completion or score changed between two snapshots."""
+    keyed = lambda rows: {r["game_id"]: r for r in rows}   # noqa: E731
+    b, out = keyed(before), []
+    for gid, a in keyed(after).items():
+        o = b.get(gid)
+        label = f"{a['away_team']} at {a['home_team']}"
+        if o is None:
+            out.append(f"{label}: added to the schedule")
+        elif o["kickoff_utc"] != a["kickoff_utc"]:
+            out.append(f"{label}: kickoff {o['kickoff_utc'] or 'TBD'} -> {a['kickoff_utc'] or 'TBD'}")
+        elif (o["completed"], o["home_points"], o["away_points"]) != (a["completed"], a["home_points"], a["away_points"]):
+            out.append(f"{label}: result/score updated")
+        elif tuple(o) != tuple(a):
+            out.append(f"{label}: details updated (venue or status)")
+    return out if len(out) <= limit else out[:limit] + [f"...and {len(out) - limit} more"]
+
+
+def refresh_summary(new, changes, calls, month_total, cap, by_endpoint=None):
+    """The markdown shown on the run page, so nobody has to dig through the log."""
+    lines = ["## Refresh history after new games"]
+    if new:
+        teams = sorted({t for _, t in new})
+        lines.append(f"**Result: {len(new)} new finished team-games ({', '.join(teams)}). History and summary tables were refreshed.**")
+    else:
+        lines.append("**Result: no new completed games.** Nothing to recompute.")
+    if changes:
+        lines += [f"- Schedule/score updates picked up from CFBD ({len(changes)}):"] + [f"  - {c}" for c in changes]
+    elif not new:
+        lines.append("- Nothing changed, so nothing was committed.")
+    ep = f" ({', '.join(f'{k} x{v}' for k, v in sorted((by_endpoint or {}).items()))})" if by_endpoint else ""
+    lines.append(f"- CFBD calls this run: **{calls}**{ep}. Month total: **{month_total}** of the {cap}-call cap.")
+    return "\n".join(lines)
 
 
 def _games_snapshot(conn, teams, season):
@@ -53,7 +88,9 @@ def main(client=None, now=None):
     new = new_completed_games(conn, games, set(teams))
     before = _games_snapshot(conn, teams, cur)
     ingest_games.store_games(conn, games, set(teams), cur, "regular")  # picks up reschedules and final scores too
-    changed = [tuple(r) for r in _games_snapshot(conn, teams, cur)] != [tuple(r) for r in before]
+    after = _games_snapshot(conn, teams, cur)
+    changed = [tuple(r) for r in after] != [tuple(r) for r in before]
+    changes = describe_changes(before, after)
     if not new:
         if changed:
             conn.commit()
@@ -61,8 +98,10 @@ def main(client=None, now=None):
         else:
             conn.rollback()
             print("No new completed games. Nothing to do.")
-        print(f"CFBD calls this run: {client.counter.used - start}")
-        return {"new_games": 0, "calls": client.counter.used - start}
+        calls = client.counter.used - start
+        print(f"CFBD calls this run: {calls}")
+        step_summary(refresh_summary([], changes, calls, client.counter.used, client.counter.cap, dict(client.by_endpoint)))
+        return {"new_games": 0, "calls": calls}
     conn.commit()
     print(f"{len(new)} new completed team-games: {sorted({t for _, t in new})}")
     ingest_games.run_stage2(conn, client, teams, cur, bins)            # box scores + PPA for just those games
@@ -76,6 +115,7 @@ def main(client=None, now=None):
     (DATA_DIR / "last_refresh.json").write_text(json.dumps(record, indent=1))
     report.run(connect(), calls_used=record["calls"])
     print(f"CFBD calls this run: {record['calls']} {dict(client.by_endpoint)}; month total {client.counter.used}")
+    step_summary(refresh_summary(new, changes, record["calls"], client.counter.used, client.counter.cap, dict(client.by_endpoint)))
     return record
 
 

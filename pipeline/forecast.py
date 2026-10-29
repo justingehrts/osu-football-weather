@@ -23,7 +23,7 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 
-from .common import CACHE_DIR, connect, connect_forecasts, http_session, load_bins
+from .common import CACHE_DIR, connect, connect_forecasts, http_session, load_bins, step_summary
 from .weather_bins import classify_precip, classify_temp, classify_wind
 
 NWS = "https://api.weather.gov"
@@ -248,6 +248,27 @@ def _recent_same(fconn, game_id, status, now, hours):
     return (now - datetime.fromisoformat(last["snapshot_utc"])).total_seconds() < hours * 3600
 
 
+def forecast_summary(conn, wrote):
+    """Markdown for the run page: what was stored, game by game, without opening the log."""
+    lines = ["## Forecast snapshots", ""]
+    if not wrote:
+        return "\n".join(lines + ["**No new snapshots** (the latest ones are recent enough, or no upcoming games).", ""])
+    counts = {}
+    for _, status, *_ in wrote:
+        counts[status] = counts.get(status, 0) + 1
+    lines.append("**Stored " + str(len(wrote)) + " new rows:** " + ", ".join(f"{n} {k.replace('_', ' ')}" for k, n in sorted(counts.items())) + ".")
+    ok = [w for w in wrote if w[1] == "ok"]
+    if ok:
+        lines += ["", "| Game | Source | Wind | Rain | Temp |", "|---|---|---|---|---|"]
+        for gid, _, src, wb, pb, tb in ok:
+            g = conn.execute("SELECT away_team, home_team FROM games WHERE game_id=?", (gid,)).fetchone()
+            lines.append(f"| {g['away_team']} at {g['home_team']} | {src} | {wb} | {pb} | {tb} |")
+    errors = [w for w in wrote if w[1] == "error"]
+    if errors:
+        lines.append(f"\n:warning: {len(errors)} game(s) got NO forecast because every source failed; they are stored as errors and will be retried.")
+    return "\n".join(lines)
+
+
 def run(conn=None, fconn=None, session=None, now=None):
     conn = conn or connect()
     fconn = fconn or connect_forecasts()
@@ -273,9 +294,10 @@ def run(conn=None, fconn=None, session=None, now=None):
         row.update(snapshot_utc=now.isoformat(timespec="seconds"), game_id=g["game_id"])
         fconn.execute(f"INSERT INTO forecast_snapshots({','.join(COLS)}) VALUES ({','.join('?' * len(COLS))})",
                       [row[c] for c in COLS])
-        wrote.append((g["game_id"], snap["status"], snap.get("source"), snap.get("wind_bin"), snap.get("precip_bin")))
+        wrote.append((g["game_id"], snap["status"], snap.get("source"), snap.get("wind_bin"), snap.get("precip_bin"), snap.get("temp_bin")))
     fconn.commit()
     _save_points(points)
+    step_summary(forecast_summary(conn, wrote))
     print(f"forecast snapshots written: {len(wrote)}")
     for w in wrote:
         print("  game", *w)

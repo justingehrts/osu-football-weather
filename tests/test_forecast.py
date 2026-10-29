@@ -186,3 +186,15 @@ def test_unknown_kickoff_time_is_stated(tmp_path, monkeypatch):
     conn, fconn = _dbs(tbd=1)
     fc.run(conn, fconn, session=FakeSession(), now=NOW)
     assert fconn.execute("SELECT status FROM forecast_snapshots").fetchone()[0] == "no_kickoff_time"
+
+
+def test_forecast_summary_lists_what_was_stored(tmp_path, monkeypatch):
+    monkeypatch.setattr(fc, "POINTS_CACHE", tmp_path / "p.json")
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "s.md"))
+    conn, fconn = _dbs()
+    wrote = fc.run(conn, fconn, session=FakeSession(nws=nws_grid(wind_kmh=30, gust_kmh=48)), now=NOW)
+    text = (tmp_path / "s.md").read_text()
+    assert "Stored 1 new rows" in text and "| USC at Ohio State |" in text
+    assert "| nws | windy | none | mild |" in text and wrote[0][1] == "ok"
+    fc.run(conn, fconn, session=FakeSession(nws=nws_grid()), now=NOW + timedelta(hours=1))   # duplicate window
+    assert "No new snapshots" in (tmp_path / "s.md").read_text()

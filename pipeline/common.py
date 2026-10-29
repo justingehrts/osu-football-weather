@@ -1,5 +1,6 @@
 """Shared helpers: paths, config, database, HTTP, distance."""
 import math
+import os
 import sqlite3
 from datetime import date
 from pathlib import Path
@@ -125,3 +126,12 @@ def connect_forecasts(db_path=FORECAST_DB_PATH):
     conn.row_factory = sqlite3.Row
     conn.executescript(FORECAST_SCHEMA)
     return conn
+
+
+def step_summary(markdown):
+    """Add text to the run's Summary page in GitHub Actions (the first thing you see when you open a run).
+    Does nothing outside Actions, so local runs and tests are unaffected."""
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if path:
+        with open(path, "a") as f:
+            f.write(markdown.rstrip() + "\n\n")
