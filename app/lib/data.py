@@ -108,3 +108,30 @@ def last_forecast_time(fconn):
         return None
     r = fconn.execute("SELECT MAX(snapshot_utc) FROM forecast_snapshots").fetchone()
     return r[0] if r and r[0] else None
+
+
+AVG_EXPR = {"pass_eff": "CASE WHEN t.pass_att > 0 THEN t.pass_yds * 1.0 / t.pass_att END",
+            "points": "t.points", "points_allowed": "t.points_allowed", "ppa_off": "t.ppa_off"}
+
+
+def raw_block_averages(conn, bins, team, bin_type, bin_value, exclude_covid=False):
+    """PLAIN averages for the 'Show anyway' view of a thin block: the team's average in the bin's games, and in all of
+    its other usable games. No adjustment, no model -- just arithmetic on real games. Returns
+    {metric: dict(mean_in, n_in, mean_other, n_other)}; means are None when there are no games."""
+    col = {"wind": "wind_bin", "precip": "precip_bin", "temp": "temp_bin"}[bin_type]
+    members = bin_members(bins, bin_type, bin_value)
+    marks = ",".join("?" * len(members))
+    covid = bins.get("flags", {}).get("covid_seasons", [])
+    extra = f" AND t.season NOT IN ({','.join(str(int(y)) for y in covid)})" if exclude_covid and covid else ""
+    out = {}
+    for metric, expr in AVG_EXPR.items():
+        r = conn.execute(
+            f"""SELECT AVG(CASE WHEN t.{col} IN ({marks}) THEN {expr} END) AS mean_in,
+                       COUNT(CASE WHEN t.{col} IN ({marks}) THEN {expr} END) AS n_in,
+                       AVG(CASE WHEN t.{col} NOT IN ({marks}) THEN {expr} END) AS mean_other,
+                       COUNT(CASE WHEN t.{col} NOT IN ({marks}) THEN {expr} END) AS n_other
+                FROM team_game_weather t
+                WHERE t.team = ? AND t.dome = 0 AND t.weather_ok = 1 AND t.points IS NOT NULL{extra}""",
+            [*members, *members, *members, *members, team]).fetchone()
+        out[metric] = dict(mean_in=r["mean_in"], n_in=r["n_in"], mean_other=r["mean_other"], n_other=r["n_other"])
+    return out

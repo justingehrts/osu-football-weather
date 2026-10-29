@@ -1,0 +1,20 @@
+# School colors for the team-name chips on the Gameday Card and the PNG graphic.
+# fg = text color, bg = chip color. Each pair is chosen for READABILITY, which is why the order differs by team
+# (e.g. Ohio State scarlet on LIGHT gray, because scarlet on the usual mid-gray is almost invisible).
+# A test fails if any pair drops below 4.5:1 contrast (the standard minimum for readable text).
+# Hex values are the schools' commonly published brand colors, entered from memory -- edit freely if one looks off.
+# A team with no entry simply gets a neutral chip, so adding teams never breaks anything.
+Ohio State:   {fg: "#BB0000", bg: "#E3E3E3"}   # scarlet on light gray
+USC:          {fg: "#990000", bg: "#FFCC00"}   # cardinal on gold
+Oregon:       {fg: "#154733", bg: "#FEE123"}   # green on yellow
+Northwestern: {fg: "#4E2A84", bg: "#E4E0EE"}   # purple on light lavender
+Nebraska:     {fg: "#FFFFFF", bg: "#E41C38"}   # white on scarlet (scarlet on cream is just under 4.5:1)
+Michigan:     {fg: "#00274C", bg: "#FFCB05"}   # blue on maize
+# Deferred teams (not loaded yet) -- ready for when they are:
+Texas:        {fg: "#FFFFFF", bg: "#A34A00"}   # white on burnt orange (darkened slightly for contrast)
+Ball State:   {fg: "#FFFFFF", bg: "#BA0C2F"}
+Illinois:     {fg: "#FFFFFF", bg: "#13294B"}
+Indiana:      {fg: "#FFFFFF", bg: "#990000"}
+Iowa:         {fg: "#000000", bg: "#FFCD00"}
+Kent State:   {fg: "#002664", bg: "#EAAB00"}
+Maryland:     {fg: "#000000", bg: "#FFD520"}

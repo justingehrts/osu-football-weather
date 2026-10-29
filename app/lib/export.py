@@ -3,7 +3,7 @@ import io
 
 from PIL import Image, ImageDraw, ImageFont
 
-from . import logic
+from . import colors, logic
 
 W, H = 1920, 1080
 BG, FG, MUTED, PANEL = (16, 24, 36), (255, 255, 255), (170, 182, 198), (28, 40, 58)
@@ -33,32 +33,60 @@ def _wrap(draw, text, font, width):
     return lines + ([cur] if cur else [])
 
 
+def fit_lines(draw, text, width, sizes=(36, 32, 28, 24), max_lines=4):
+    """Wrap text to the width, shrinking the font until it fits in max_lines. Never drops words: if even the
+    smallest size needs more lines, they are all kept (the layout below then moves down)."""
+    for size in sizes:
+        lines = _wrap(draw, text, _font(size), width)
+        if len(lines) <= max_lines:
+            return size, lines
+    return sizes[-1], lines
+
+
 def render_card_png(view):
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
-    d.text((80, 50), view["title"].upper(), font=_font(64, True), fill=FG)
+    x = 80
+    f64 = _font(64, True)
+    for part, is_team in ((view["away_team"], True), (view["joiner"].upper(), False), (view["home_team"], True)):
+        w = d.textlength(part, font=f64)
+        if is_team:
+            c = colors.colors_for(part)
+            d.rounded_rectangle((x, 38, x + w + 56, 126), radius=18, fill=colors.rgb(c["bg"]))
+            d.text((x + 28, 46), part, font=f64, fill=colors.rgb(c["fg"]))
+            x += w + 56 + 28
+        else:
+            d.text((x, 46), part, font=f64, fill=MUTED)
+            x += w + 28
     sub = " · ".join(x for x in [view.get("venue")] if x)
     if sub:
-        d.text((80, 130), sub, font=_font(32), fill=MUTED)
+        d.text((80, 140), sub, font=_font(32), fill=MUTED)
     x = 80
     for b in view.get("badges", []):
         w = d.textlength(b, font=_font(36, True)) + 44
         d.rounded_rectangle((x, 185, x + w, 245), radius=30, fill=(46, 64, 90))
         d.text((x + 22, 194), b, font=_font(36, True), fill=FG)
         x += w + 16
+    size, lines = fit_lines(d, view["takeaway"], W - 160)
     y = 275
-    for line in _wrap(d, view["takeaway"], _font(36), W - 160)[:4]:
-        d.text((80, y), line, font=_font(36), fill=FG)
-        y += 48
+    for line in lines:
+        d.text((80, y), line, font=_font(size), fill=FG)
+        y += int(size * 1.33)
     sec = (view.get("sections") or [None])[0]
     if sec:
-        y = max(y + 20, 500)
-        d.text((80, y - 50), f"{sec['title'].upper()}  ·  vs. all other games", font=_font(30, True), fill=MUTED)
+        y = max(y + 70, 520)                           # cards start below the text, with room for the heading
+        d.text((80, y - 48), f"{sec['title'].upper()}  ·  vs. all other games", font=_font(30, True), fill=MUTED)
         cols = [(view["focal"], 80), (view["opponent"], 700), (logic.POOLED, 1320)]
         for team, x0 in cols:
             name = f"All {view['pooled_n']} loaded teams" if team == logic.POOLED else team
             d.rounded_rectangle((x0, y, x0 + 520, y + 440), radius=24, fill=PANEL)
-            d.text((x0 + 30, y + 22), name, font=_font(38, True), fill=FG)
+            if team == logic.POOLED:                      # the reference line stays neutral
+                d.text((x0 + 30, y + 22), name, font=_font(38, True), fill=FG)
+            else:
+                c, f38 = colors.colors_for(team), _font(38, True)
+                w = d.textlength(name, font=f38)
+                d.rounded_rectangle((x0 + 22, y + 14, x0 + 22 + w + 36, y + 76), radius=12, fill=colors.rgb(c["bg"]))
+                d.text((x0 + 40, y + 20), name, font=f38, fill=colors.rgb(c["fg"]))
             rows = [r for r in sec["rows"] if r.team == team and r.metric in ("pass_eff", "points")]
             yy = y + 100
             if rows and rows[0].status == "not_loaded":

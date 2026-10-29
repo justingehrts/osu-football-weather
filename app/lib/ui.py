@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # so `lib.*` imports work from pages/
-from lib import config, data, logic                              # noqa: E402
+from lib import colors, config, data, logic                      # noqa: E402
 
 CHIP_CLASS = {logic.CLEAR: "clear", logic.LEANS: "leans", logic.NONE: "none", logic.FEW: "few", logic.CONTEXT: "ctx"}
 CSS = """
@@ -19,6 +19,10 @@ CSS = """
 .chip-ctx {background:#e6dcf2; color:#3b2a57;}
 .badge {display:inline-block; padding:4px 12px; margin:0 6px 6px 0; border-radius:14px; background:#1d2733; color:#fff; font-weight:600;}
 .small {font-size:0.85rem; color:#5b6470;}
+.team-chip {display:inline-block; padding:.15rem .7rem; border-radius:.45rem; font-weight:700; font-size:1.15rem; line-height:1.5;}
+.matchup {font-size:1.7rem; margin:.2rem 0 .4rem 0;} .matchup .team-chip {font-size:1.7rem; padding:.1rem .8rem;}
+.matchup .at {margin:0 .5rem; font-weight:600; color:#5b6470;}
+.anecdote {border:1px dashed #8a929c; border-radius:.4rem; padding:.35rem .6rem; margin:0 0 .55rem 0;}
 .num {font-size:1.25rem; font-weight:700;}
 </style>
 """
@@ -112,19 +116,51 @@ def result_row(r):
     st.markdown(f'<div style="margin:0 0 .55rem 0"><div class="small">{r.metric_name}</div>{right}</div>', unsafe_allow_html=True)
 
 
+def anecdote_row(r, averages):
+    """A thin row revealed by 'Show anyway': the plain average of those games, clearly NOT a finding."""
+    text = logic.anecdote_text(r.metric, (averages or {}).get(r.metric))
+    st.markdown(f'<div class="anecdote"><div class="small">{r.metric_name}</div>{text or "no games to average"}<br>'
+                f'{chip(r.label)} <span class="small">anecdote, not a finding &middot; plain average, no adjustments</span></div>',
+                unsafe_allow_html=True)
+
+
 def team_block(rows, title, key_prefix):
-    """A team's rows for one condition, plus the button that opens the games behind them."""
-    st.markdown(f"##### {title}")
+    """A team's rows for one condition, plus the button that opens the games behind them.
+
+    Rows labelled 'Not enough games' get a per-block 'Show anyway' switch. It starts OFF for everyone (it is
+    session-only: not in the page address, so a shared link never carries it) and reveals the plain average of the
+    few games instead of a model number. The takeaway, blurb, CSV and PNG never use revealed numbers."""
+    st.markdown(f'<div style="margin:.3rem 0 .5rem 0">{colors.chip_html(title)}</div>', unsafe_allow_html=True)
     if rows and rows[0].status == "not_loaded":
         st.info("data not loaded yet")
         return
+    thin = [r for r in rows if r.status == "ok" and r.label == logic.FEW and r.n > 0]
+    show, averages = False, None
+    if thin:
+        r0 = thin[0]
+        show = st.toggle("Show anyway", key=f"anyway-{key_prefix}-{r0.team}-{r0.bin_type}-{r0.bin_value}",
+                         help=f"{len(thin)} of these numbers rest on too few games to trust. This shows the plain average "
+                              "of those few games, with no adjustments, and clearly marks it as an anecdote.")
+        if show:
+            res = resources()
+            averages = data.raw_block_averages(res["conn"], res["bins"], r0.team, r0.bin_type, r0.bin_value,
+                                               exclude_covid=(st.session_state.get("scope") == "ex2020"))
     for r in rows:
-        result_row(r)
+        if show and r in thin:
+            anecdote_row(r, averages)
+        else:
+            result_row(r)
     r0 = next((r for r in rows if r.status == "ok"), None)
     if r0 is not None and r0.n and r0.team != logic.POOLED:
         if st.button(f"See the {r0.n} games behind these numbers", key=f"{key_prefix}-{r0.team}-{r0.bin_type}-{r0.bin_value}",
                      type="tertiary"):
             evidence_dialog(r0.team, r0.bin_type, r0.bin_value, st.session_state.get("scope", "all"))
+
+
+def matchup_header(view):
+    """'Ohio State at USC' with each name in its school colors."""
+    st.markdown(f'<div class="matchup">{colors.chip_html(view["away_team"])}<span class="at">{view["joiner"]}</span>'
+                f'{colors.chip_html(view["home_team"])}</div>', unsafe_allow_html=True)
 
 
 def pooled_reference(rows, pooled_n):

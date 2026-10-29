@@ -284,3 +284,94 @@ def test_shared_links_prefill_the_view():
 def test_pages_say_how_fresh_the_data_is():
     at = run_page("app/streamlit_app.py")
     assert any("History through games played" in c.value for c in at.caption)
+
+
+# --------------------------------------------------------------------------- team colors
+def test_every_team_color_pair_is_legible_and_loaded_teams_all_have_colors():
+    from lib import colors
+    pairs = colors.load_colors()
+    assert pairs, "config/team_colors.yaml is empty"
+    for team, c in pairs.items():
+        assert colors.contrast_ratio(c["fg"], c["bg"]) >= 4.5, f"{team}: {c} is below the 4.5:1 legibility minimum"
+    for team in config.load_teams()["loaded"]:
+        assert team in pairs, f"{team} has no school colors in config/team_colors.yaml"
+
+
+def test_unknown_teams_get_a_neutral_chip_and_names_are_escaped():
+    from lib import colors
+    assert colors.colors_for("Some New Team") == colors.NEUTRAL
+    html = colors.chip_html("Ohio State")
+    assert "#BB0000" in html and "#E3E3E3" in html                       # scarlet on light gray
+    assert "&lt;b&gt;" in colors.chip_html("<b>x</b>") and "<b>" not in colors.chip_html("<b>x</b>")
+
+
+def test_contrast_helper_matches_known_values():
+    from lib import colors
+    assert colors.contrast_ratio("#000000", "#FFFFFF") == pytest.approx(21.0, abs=0.01)
+    assert colors.contrast_ratio("#BB0000", "#666666") < 1.5            # scarlet on mid-gray: the unreadable combination
+
+
+def test_png_uses_school_colors_and_never_drops_words_from_a_long_takeaway():
+    from lib import colors
+    st = windy_stats()
+    view = logic.build_gameday_view(st, BINS, TEAMS, card_game(), {"status": "ok", "wind_bin": "windy", "precip_bin": "none", "temp_bin": "mild"}, {})
+    img = Image.open(io.BytesIO(export.render_card_png(view))).convert("RGB")
+    gold = colors.rgb(colors.colors_for("USC")["bg"])
+    assert any(img.getpixel((x, 80)) == gold for x in range(0, 1200, 4))            # the USC name chip is drawn in USC gold
+    from PIL import ImageDraw
+    d = ImageDraw.Draw(Image.new("RGB", (10, 10)))
+    long_text = "word " * 120
+    size, lines = export.fit_lines(d, long_text, 1760)
+    assert " ".join(lines).split() == long_text.split()                              # nothing was cut off
+    assert size <= 36
+
+
+# --------------------------------------------------------------------------- Show anyway
+def test_plain_averages_for_a_thin_block_are_just_arithmetic():
+    from pipeline.common import connect
+    db = connect(":memory:")
+    db.execute("INSERT INTO venues(venue_id,name,dome) VALUES (1,'V',0)")
+    rows = [("windy", 10, 100, 20, 1), ("windy", 20, 120, 20, 2), ("windy", 30, 140, 20, 3),
+            ("calm", 40, 200, 20, 4), ("calm", 40, 200, 20, 5), ("calm", 40, 200, 20, 6), ("calm", 40, 200, 20, 7)]
+    for wb, pts, yds, att, gid in rows:
+        db.execute("INSERT INTO games(game_id,season,week,season_type,kickoff_utc,completed,home_team,away_team,venue_id,home_points,away_points)"
+                   " VALUES (?,2025,?, 'regular','2025-10-01T17:00:00Z',1,'A','B',1,?,0)", (gid, gid, pts))
+        db.execute("INSERT INTO weather_obs(game_id,weather_ok,wind_bin,precip_bin,temp_bin) VALUES (?,1,?, 'none','mild')", (gid, wb))
+        db.execute("INSERT INTO team_games(game_id,team,opponent,home_away,points,pass_yds,pass_att) VALUES (?, 'A','B','home',?,?,?)", (gid, pts, yds, att))
+    db.commit()
+    a = data.raw_block_averages(db, BINS, "A", "wind", "windy")
+    assert (a["points"]["mean_in"], a["points"]["n_in"]) == (20, 3) and (a["points"]["mean_other"], a["points"]["n_other"]) == (40, 4)
+    assert a["pass_eff"]["mean_in"] == pytest.approx((5.0 + 6.0 + 7.0) / 3)           # per-game ratio, averaged
+    assert logic.anecdote_text("points", a["points"]) == "<b>20.0 pts</b> in these 3 games vs. 40.0 in this team's other 4 games"
+    assert logic.anecdote_text("points", {"mean_in": None}) is None
+
+
+def _page_with_a_thin_block():
+    """A Gameday Card state that has at least one 'Not enough games' block with some games behind it."""
+    from pathlib import Path
+    for wind, precip in (("Windy", "Steady rain"), ("Windy", "Light rain"), ("Calm", "Steady rain"), ("Moderate wind", "Steady rain")):
+        at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app/streamlit_app.py"), default_timeout=90).run()
+        [s for s in at.selectbox if s.label == "Wind"][0].select(wind)
+        [s for s in at.selectbox if s.label == "Precipitation"][0].select(precip)
+        at.run()
+        if any(t.label == "Show anyway" for t in at.toggle):
+            return at
+    pytest.skip("no thin block in the current data")
+
+
+def test_show_anyway_starts_off_reveals_plain_averages_and_never_touches_the_takeaway():
+    at = _page_with_a_thin_block()
+    toggles = [t for t in at.toggle if t.label == "Show anyway"]
+    assert all(t.value is False for t in toggles)                                   # everyone starts off
+    page = " ".join(m.value for m in at.markdown)
+    assert "anecdote, not a finding" not in page
+    takeaway_before = at.info[0].value
+    toggles[0].set_value(True).run()
+    assert not at.exception
+    page = " ".join(m.value for m in at.markdown)
+    assert "anecdote, not a finding" in page and "plain average, no adjustments" in page
+    assert "Not enough games" in page                                               # the label is never upgraded
+    assert at.info[0].value == takeaway_before                                      # the takeaway never uses revealed numbers
+    assert "anyway" not in " ".join(at.query_params.keys())                         # session-only: a shared link can't carry it
+    fresh = _page_with_a_thin_block()
+    assert all(t.value is False for t in fresh.toggle if t.label == "Show anyway")  # a new visitor starts off again

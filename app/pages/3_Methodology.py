@@ -83,6 +83,8 @@ Each number carries one of four labels, always next to its **n** (the number of 
 | **No clear effect** | Enough games ({c['thin_below_n']}+) and nothing there. **This is a real finding**, not missing data. |
 | **Not enough games** | Fewer than {c['suppress_below_n']} games (or {c['suppress_below_n']}–{c['thin_below_n'] - 1} with no lean), so we say nothing. |
 
+**Show anyway.** On the Gameday Card, a block with "Not enough games" has a small **Show anyway** switch (off every time you open the page). It reveals the plain average of those few games next to the team's other games, boxed and marked "anecdote, not a finding": no adjustments, no model, and it never feeds the takeaway or the exports.
+
 Steady rain is therefore always at most **Leans**: it is rare. The one-sentence takeaway at the top of the Gameday Card uses **only wind and rain**, only findings labelled
 Clear signal or Leans, and its wording matches the label (it never says "will").
 """)
