@@ -1,5 +1,6 @@
 """Shared test setup. The app reads its database paths from environment variables at import time, so
 they are set HERE, before any app module is imported."""
+import json
 import os
 import sqlite3
 import sys
@@ -26,7 +27,13 @@ def _build_forecast_fixture():
     cols = ("snapshot_utc,game_id,status,source,hours_ahead,wind_sust,wind_gust,precip_prob,precip_amt,temp_f,"
             "wind_bin,precip_bin,temp_bin,precip_uncertain,note")
     if games:
-        f.execute(f"INSERT INTO forecast_snapshots({cols}) VALUES ('2026-10-28T18:00:00',?, 'ok','nws',60,17,28,60,0.08,51,'windy','light','mild',0,NULL)", (games[0][0],))
+        # an earlier pull (so the page can show a trend), then the latest one with hour-by-hour values in `detail`
+        f.execute(f"INSERT INTO forecast_snapshots({cols}) VALUES ('2026-10-27T18:00:00',?, 'ok','nws',84,12,21,40,0.03,54,'moderate','light','mild',0,NULL)", (games[0][0],))
+        hours = [{"time": f"2026-10-31T{h}:00:00+00:00", "wind": w, "gust": g, "pop": p, "rain_in": r, "temp_f": t}
+                 for h, w, g, p, r, t in ((23, 14, 24, 50, 0.02, 53), ("00", 17, 28, 60, 0.03, 51), ("01", 16, 27, 60, 0.02, 50),
+                                          ("02", 13, 22, 40, 0.01, 49))]
+        f.execute(f"INSERT INTO forecast_snapshots({cols},detail) VALUES ('2026-10-28T18:00:00',?, 'ok','nws',60,17,28,60,0.08,51,'windy','light','mild',0,NULL,?)",
+                  (games[0][0], json.dumps({"hours": hours})))
     if len(games) > 1:
         f.execute(f"INSERT INTO forecast_snapshots({cols}) VALUES ('2026-10-28T18:00:00',?, 'beyond_horizon',NULL,210,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'kickoff is 8.8 days out')", (games[1][0],))
     if len(games) > 2:

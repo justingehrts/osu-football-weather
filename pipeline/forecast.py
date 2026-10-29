@@ -91,7 +91,23 @@ def summarize_nws(grid, start, end):
     pops = [v for _, _, v, _ in window_items("probabilityOfPrecipitation")]
     qpf = window_items("quantitativePrecipitation")
     amount_mm = sum(v * o / max((e - s).total_seconds() / 3600, 1e-9) for s, e, v, o in qpf)
+    hours = []
+    h = start.replace(minute=0, second=0, microsecond=0)
+    series = {k: _series(props.get(k)) for k in ("temperature", "windSpeed", "windGust", "probabilityOfPrecipitation",
+                                               "quantitativePrecipitation")}
+
+    def at(name, t):
+        return next((v for s_, e_, v in series[name] if s_ <= t < e_), None)
+    while h < end:
+        rain_mm = sum(v * _overlap_hours(s_, e_, h, h + timedelta(hours=1)) / max((e_ - s_).total_seconds() / 3600, 1e-9)
+                      for s_, e_, v in series["quantitativePrecipitation"])
+        t_c, w, g = at("temperature", h), at("windSpeed", h), at("windGust", h)
+        hours.append({"time": h.isoformat(), "wind": None if w is None else round(w * KMH_TO_MPH, 1),
+                      "gust": None if g is None else round(g * KMH_TO_MPH, 1), "pop": at("probabilityOfPrecipitation", h),
+                      "rain_in": round(rain_mm / 25.4, 3), "temp_f": None if t_c is None else round(t_c * 9 / 5 + 32, 1)})
+        h += timedelta(hours=1)
     return {
+        "hours": hours,
         "wind_sust": max(winds) * KMH_TO_MPH if winds else None,
         "wind_gust": max(gusts) * KMH_TO_MPH if gusts else None,
         "precip_prob": max(pops) if pops else None,
@@ -120,7 +136,11 @@ def summarize_open_meteo(data, start, end):
             rain += h["precipitation"][i] * ov
     temps, winds, gusts, pops = col("temperature_2m"), col("wind_speed_10m"), col("wind_gusts_10m"), col("precipitation_probability")
     expected = max(1, int(window_h) + 1)
+    hours = [{"time": times[i].isoformat(), "wind": h["wind_speed_10m"][i], "gust": h["wind_gusts_10m"][i],
+              "pop": h["precipitation_probability"][i], "rain_in": h["precipitation"][i], "temp_f": h["temperature_2m"][i]}
+             for i in idx if times[i] < end]
     return {
+        "hours": hours,
         "wind_sust": max(winds) if winds else None, "wind_gust": max(gusts) if gusts else None,
         "precip_prob": max(pops) if pops else None, "precip_amt": rain if h.get("precipitation") else None,
         "temp_f": sum(temps) / len(temps) if temps else None,
@@ -213,7 +233,9 @@ def forecast_for_game(game, session, bins, now, points_cache):
             return {**base, "status": "beyond_horizon", "note": "; ".join(attempts)}
         return {**base, "status": "error", "note": "; ".join(attempts) or "no forecast source answered"}
     wind, precip, temp, uncertain = classify_forecast(summary, bins)
-    return {**base, "status": "ok", "source": source, "detail": json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in summary.items()}), **{k: summary[k] for k in ("wind_sust", "wind_gust", "precip_prob", "precip_amt", "temp_f")},
+    detail = json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in summary.items()})   # incl. hour-by-hour values
+    return {**base, "status": "ok", "source": source, "detail": detail,
+            **{k: summary[k] for k in ("wind_sust", "wind_gust", "precip_prob", "precip_amt", "temp_f")},
             "wind_bin": wind, "precip_bin": precip, "temp_bin": temp, "precip_uncertain": uncertain,
             "note": ("; ".join(attempts) + " -> used fallback") if attempts else None}
 

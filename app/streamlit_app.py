@@ -1,4 +1,5 @@
 """Gameday Card: the landing page. Opens on the next Ohio State game with the forecast prefilled."""
+import json
 import sys
 from pathlib import Path
 
@@ -6,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pandas as pd                                    # noqa: E402
 import streamlit as st                                  # noqa: E402
 
-from lib import data, export, logic, ui                 # noqa: E402
+from lib import charts, data, export, logic, plain, ui  # noqa: E402
 
 ui.setup("Gameday Card")
 res = ui.resources()
@@ -50,7 +51,7 @@ with st.expander("What-If: change the conditions", expanded=bool(ui.qp("wind") o
     wind_pick = c1.selectbox("Wind", list(WIND_OPTS), index=_idx(WIND_OPTS, ui.qp("wind")))
     precip_pick = c2.selectbox("Precipitation", list(PRECIP_OPTS), index=_idx(PRECIP_OPTS, ui.qp("precip")))
     temp_pick = c3.selectbox("Temperature (context only)", list(TEMP_OPTS), index=_idx(TEMP_OPTS, ui.qp("temp")))
-    side_by_side = st.checkbox("Show dry and wet side by side", value=ui.qp("sbs") == "1",
+    side_by_side = st.checkbox("Show both dry and wet histories", value=ui.qp("sbs") == "1",
                                help="Turned on automatically when the chance of rain is in the middle (30-70%).")
     scope_all = st.checkbox("Include the 2020 season (COVID-altered)", value=ui.qp("y2020", "1") != "0")
 what_if = {"wind": WIND_OPTS[wind_pick], "precip": PRECIP_OPTS[precip_pick], "temp": TEMP_OPTS[temp_pick]}
@@ -60,7 +61,27 @@ ui.set_qp(game=gid if gid != int(default_game["game_id"]) else None, wind=what_i
           temp=what_if["temp"], sbs="1" if side_by_side else None, y2020=None if scope_all else "0")
 
 forecast = data.latest_forecast(fconn, gid)
-view = logic.build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side, scope)
+
+
+def typicals_for(game, forecast):
+    """Each shown team's PLAIN averages in its other games (for the game-sized translations). Only the bins the card
+    will show, only loaded teams."""
+    if game["completed"] or game.get("dome") == 1:
+        return {}
+    cond = logic.conditions_from(forecast, what_if)
+    shown = ([("wind", cond["wind"])] if cond["wind"] else []) + [("precip", b) for b in logic.precip_bins_to_show(cond["precip"], side_by_side)]
+    out = {}
+    for team in (focal, game["opponent"]):
+        if team in teams["deferred"] or not stats.loaded(team):
+            continue
+        for dim, bv in shown:
+            out[(team, dim, bv)] = data.raw_block_averages(conn, bins, team, dim, bv, exclude_covid=(scope == "ex2020"))
+    return out
+
+
+view = logic.build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side, scope,
+                                typicals=typicals_for(game, forecast), first_season=teams.get("first_season"))
+head_m, hood_m = view.get("headline_metrics", []), view.get("hood_metrics", [])
 precip_uncertain = view.get("conditions", {}).get("precip") == "uncertain"
 
 # ---- header, forecast, takeaway ---------------------------------------------------------------
@@ -95,9 +116,15 @@ else:
             st.caption(f"{forecast['source'].upper()} forecast pulled {tz_local(forecast['snapshot_utc'])}, for kickoff to +3.5 h: "
                        f"wind up to {forecast['wind_sust']:.0f} mph (gusts {forecast['wind_gust']:.0f}), chance of rain {forecast['precip_prob']:.0f}%, "
                        f"{forecast['precip_amt']:.2f} in., {forecast['temp_f']:.0f}°F.")
+            _, near = plain.bin_distances(forecast, bins)
+            if near:
+                st.warning("**Borderline forecast:** " + "; ".join(near) + ". A small change in the forecast could change "
+                           "which history applies; see *Forecast details* below.", icon="⚠️")
     else:
         st.warning(view["takeaway"].split(" Choose conditions")[0])
     st.info(view["takeaway"])
+    if view.get("on_air") and view["sections"]:
+        ui.on_air_box(view["on_air"])
     if view["sections"]:
         st.caption("All numbers below compare a team's games in these conditions with its **other** games (for example, windy vs. not windy), "
                    "with opponent strength, time of season and home/away held fixed. Exploratory: not a prediction.")
@@ -106,29 +133,56 @@ else:
 pn = view["pooled_n"]
 for sec in [s for s in view["sections"] if s["dim"] == "wind"]:
     st.markdown(f"### Wind: {sec['title']}")
+    ui.condition_chart(sec["rows"], view, head_m)
     cols = st.columns(2)
     for col, team in zip(cols, (view["focal"], view["opponent"])):
         with col:
-            ui.team_block([r for r in sec["rows"] if r.team == team], team, "w")
-    ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED], pn)
+            ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, "w")
+    ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in head_m], pn)
 
 psecs = [s for s in view["sections"] if s["dim"] == "precip"]
 if psecs:
-    st.markdown("### Precipitation" + (": " + " and ".join(logic.PRECIP_NAME.get(x["bin"], x["bin"]) for x in psecs).replace("Any rain (light + steady)", "any rain") + ", side by side" if len(psecs) > 1 else ""))
+    st.markdown("### Precipitation" + (": " + " and ".join(logic.PRECIP_NAME.get(x["bin"], x["bin"]) for x in psecs).replace("Any rain (light + steady)", "any rain") if len(psecs) > 1 else ""))
     if precip_uncertain or (forecast and forecast.get("precip_uncertain") and not what_if["precip"]):
         st.caption("The chance of rain is in the middle, so both histories are shown rather than picking one.")
-    bin_cols = st.columns(len(psecs))
-    for col, sec in zip(bin_cols, psecs):
-        with col:
-            st.markdown(f"**{logic.PRECIP_NAME.get(sec['bin'], sec['bin'])}** ({sec['title']})")
-            for team in (view["focal"], view["opponent"]):
-                ui.team_block([r for r in sec["rows"] if r.team == team], team, f"p{sec['bin']}")
-            ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED], pn)
+    # Same orientation as the wind section: the two teams are always left (focal) and right (opponent). When there is
+    # more than one rain scenario, the scenarios are stacked top to bottom, each with its own left-right comparison.
+    for sec in psecs:
+        st.markdown(f"#### {logic.PRECIP_NAME.get(sec['bin'], sec['bin'])} ({sec['title']})")
+        ui.condition_chart(sec["rows"], view, head_m)
+        cols = st.columns(2)
+        for col, team in zip(cols, (view["focal"], view["opponent"])):
+            with col:
+                ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, f"p{sec['bin']}")
+        ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in head_m], pn)
     if any(s["bin"] == "steady" for s in psecs):
         st.caption("Steady rain is rare, so it is capped at **Leans** and kept separate from light rain.")
 
 # ---- expanders --------------------------------------------------------------------------------
 all_rows = [r for s in view["sections"] for r in s["rows"]]
+if all_rows and hood_m:
+    with st.expander("Under the hood: offensive PPA (for the stats crowd)"):
+        st.markdown("**PPA** (predicted points added) is the change in expected points on each offensive play, from down, "
+                    "distance and field position. It rates every snap, not just the scoring ones, so it is a steadier "
+                    "measure of an offense than points. The pipeline already uses it: the passing and scoring evidence "
+                    "labels each check PPA alongside yards per pass or points. It is kept off the main card because "
+                    "it doesn't translate into an on-air sentence.")
+        tbl = []
+        for sec in view["sections"]:
+            for r in sec["rows"]:
+                if r.metric not in hood_m:
+                    continue
+                who = f"All {pn} loaded teams" if r.team == logic.POOLED else r.team
+                if r.status != "ok":
+                    tbl.append({"Condition": sec["title"], "Team": who, "Change": "data not loaded yet"})
+                    continue
+                tbl.append({"Condition": sec["title"], "Team": who, "Change": r.extra.get("words") or r.text(),
+                            "Adjusted": r.text(), "n": r.n, "Evidence": r.label})
+        st.markdown("**Offense: expected points per play** (PPA), vs. all other games")
+        st.dataframe(pd.DataFrame(tbl), hide_index=True, width="stretch")
+        st.caption("Same yardstick as the card: games in this condition vs. that team's other games, with opponent "
+                   "strength, month and home/away held fixed. A typical offense averages roughly 0.1-0.3 PPA per play, "
+                   "so a change of 0.05 is meaningful.")
 if all_rows:
     with st.expander("90% intervals (the ranges behind the labels)"):
         st.dataframe(ui.intervals_table(all_rows, pn), hide_index=True, width="stretch")
@@ -169,7 +223,37 @@ if status not in ("played", "indoor"):
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch") if rows else st.caption("No cold-game history to show.")
     hist = data.forecast_history(fconn, gid)
     if not hist.empty:
-        with st.expander("Forecast history (every pull is kept)"):
+        with st.expander("Forecast details: bin lines, trend and hour by hour", expanded=False):
+            dist, _ = plain.bin_distances(forecast, bins)
+            if dist:
+                st.markdown("**How close is the forecast to the lines that change the card?**")
+                st.dataframe(pd.DataFrame(dist), hide_index=True, width="stretch")
+                st.caption("Borderline = within the margins set in config/bins.yaml (forecast.borderline). The history "
+                           "is binned on the same lines, so a forecast near a line could fall into either history.")
+            trend_text, ok_hist = plain.forecast_trend(hist)
+            st.markdown("**How the forecast has moved**")
+            if trend_text:
+                st.markdown(trend_text)
+                tc = charts.trend_chart(ok_hist)
+                if tc is not None:
+                    st.altair_chart(tc, width="stretch")
+            else:
+                st.caption("Only one usable forecast pull so far; the trend appears after the next one.")
+            st.markdown("**Hour by hour, kickoff to +3.5 h** (latest pull)")
+            hours = []
+            if forecast and forecast.get("detail"):
+                try:
+                    hours = (json.loads(forecast["detail"]) or {}).get("hours") or []
+                except (TypeError, ValueError):
+                    hours = []
+            hc = charts.hourly_chart(hours, bins)
+            if hc is not None:
+                st.altair_chart(hc, width="stretch")
+                st.caption("Bars = sustained wind, triangles = gusts, dashed red lines = where 'windy' starts, green line = "
+                           "chance of rain (right axis). The card uses the strongest wind and the total rain in the window.")
+            else:
+                st.caption("No hour-by-hour values in this pull yet (pulls made before this feature only kept the window summary).")
+            st.markdown("**Every pull (kept, never overwritten)**")
             show = hist[["snapshot_utc", "source", "status", "wind_sust", "wind_gust", "precip_prob", "precip_amt", "temp_f", "wind_bin", "precip_bin", "temp_bin"]]
             st.dataframe(show.sort_values("snapshot_utc", ascending=False), hide_index=True, width="stretch")
 

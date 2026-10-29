@@ -61,7 +61,14 @@ forecast:
   min_window_coverage: 0.75       # if the forecast covers less than this share of the game window, treat it as beyond the horizon
   min_hours_between_snapshots: 3  # re-running the job within this window doesn't add a duplicate row
   min_hours_between_beyond_horizon_rows: 24
+  borderline:                     # how close to a bin line counts as "borderline" (a small forecast change could flip the card)
+    wind_mph: 2
+    gust_mph: 3
+    rain_in: 0.03
+    rain_chance_pct: 10
+    temp_f: 2
   user_agent: "osu-football-weather (https://github.com/justingehrts/osu-football-weather)"
 app:
   clear_signal_min_n: 30          # "Clear signal" needs the pipeline's CLEAR tier AND at least this many games
-  headline_metrics: [pass_eff, points, points_allowed, ppa_off]
+  headline_metrics: [pass_eff, points, points_allowed]   # shown on the card for everyone
+  under_the_hood_metrics: [ppa_off]                      # shown in the "Under the hood" expander for the stats crowd

@@ -2,3 +2,4 @@ streamlit>=1.50
 pandas>=2.0
 PyYAML>=6.0
 pillow>=10.1
+altair>=5.0
