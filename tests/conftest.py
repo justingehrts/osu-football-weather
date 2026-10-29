@@ -6,6 +6,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
 sys.path.insert(0, str(ROOT))
@@ -33,3 +35,12 @@ def _build_forecast_fixture():
 
 
 _build_forecast_fixture()
+
+
+@pytest.fixture(autouse=True)
+def _tests_never_write_the_real_run_summary(monkeypatch):
+    """Inside GitHub Actions the variable GITHUB_STEP_SUMMARY points at the run's public Summary page.
+    The refresh workflow runs these tests first, and the forecast tests exercise code that writes a summary --
+    so without this, FAKE forecasts ("USC at Ohio State | windy") appeared on the real run page next to the real
+    result. Every test now starts without it; a test that wants it sets it to its own temp file."""
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)

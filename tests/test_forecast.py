@@ -198,3 +198,20 @@ def test_forecast_summary_lists_what_was_stored(tmp_path, monkeypatch):
     assert "| nws | windy | none | mild |" in text and wrote[0][1] == "ok"
     fc.run(conn, fconn, session=FakeSession(nws=nws_grid()), now=NOW + timedelta(hours=1))   # duplicate window
     assert "No new snapshots" in (tmp_path / "s.md").read_text()
+
+
+def test_running_the_tests_inside_actions_does_not_pollute_the_real_run_summary(tmp_path):
+    """Regression: the tests are run by the refresh workflow, with GITHUB_STEP_SUMMARY set. Run a forecast test the
+    way Actions does and prove nothing reaches that file."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    real_summary = tmp_path / "real_run_summary.md"
+    real_summary.write_text("")
+    root = Path(__file__).resolve().parents[1]
+    done = subprocess.run([sys.executable, "-m", "pytest", "-q", "-x", str(root / "tests/test_forecast.py"),
+                           "-k", "ok_snapshot_is_stored or beyond_horizon_says_so or fall"],
+                          cwd=root, env={**os.environ, "GITHUB_STEP_SUMMARY": str(real_summary)}, capture_output=True, text=True)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert real_summary.read_text() == ""

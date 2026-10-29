@@ -38,13 +38,17 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data reports    # data/ includes the raw CFBD cache, the call counter and the database
-          if git diff --cached --quiet; then
+          git add data reports    # data/ includes the raw CFBD cache, the database and the call counter
+          changed="$(git diff --cached --name-only)"
+          # The call counter changes on every run but is rebuilt from CFBD's own count at the start of each
+          # run, so a run whose ONLY change is the counter is a quiet run: commit nothing.
+          if [ -z "$changed" ] || [ "$changed" = "data/cfbd_calls.json" ]; then
+            git reset -q
             echo "No data changes."
-            echo "- **Data commit:** none (no files changed)." >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Data commit:** none (nothing changed except the CFBD call counter, which is not committed on its own)." >> "$GITHUB_STEP_SUMMARY"
           else
             git commit -m "Refresh history after new games ($(date -u +%Y-%m-%d))"
             git pull --rebase --autostash
             git push
-            echo "- **Data commit:** pushed to main ($(git diff --name-only HEAD~1 HEAD | wc -l) files)." >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Data commit:** pushed to main: $(echo "$changed" | sed 's/^/`/;s/$/`/' | tr '\n' ' ')" >> "$GITHUB_STEP_SUMMARY"
           fi

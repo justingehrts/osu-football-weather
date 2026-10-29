@@ -72,7 +72,8 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
 ```
 - `.github/workflows/refresh.yml`: Sunday and Monday (UTC 07:17 and 19:17) Aug-Jan. ONE CFBD call; only if a loaded
   team has a completed game with no box score does it fetch box scores + PPA, refresh the current-season SP+
-  (1 call), pull the ASOS windows, recompute `team_splits`/`team_tiers`, and commit. Quiet runs commit nothing.
+  (1 call), pull the ASOS windows, recompute `team_splits`/`team_tiers`, and commit. Quiet runs commit nothing
+  (the call counter is re-read from CFBD's free `/info` at the start of every run, so it is never committed alone).
   Budget: about 4 calls a week when quiet, about 8 on a game week. It is the only scheduled CFBD user.
 - `.github/workflows/forecast.yml`: every 6 hours Tue-Sat in season; NWS hourly gridpoint (Open-Meteo only if NWS
   fails) for each upcoming game's venue, kickoff to +3.5 h, mapped to the same bins as the history. Each pull is a NEW
