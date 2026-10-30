@@ -72,3 +72,4 @@ app:
   clear_signal_min_n: 30          # "Clear signal" needs the pipeline's CLEAR tier AND at least this many games
   headline_metrics: [pass_eff, points, points_allowed]   # shown on the card for everyone
   under_the_hood_metrics: [ppa_off]                      # shown in the "Under the hood" expander for the stats crowd
+  playcalling_metrics: [pass_rate, plays]                # how they call plays (neutral: not better or worse), in its own block

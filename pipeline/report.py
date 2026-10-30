@@ -171,7 +171,7 @@ def rating_section(usable, bins):
 
 
 def _raw_shift(g, bins):
-    from .compute_splits import METRICS as MET, game_values
+    from .compute_splits import CORE_METRICS as MET, game_values   # (playcalling metrics are in other units)
     masks = bin_masks(g.reset_index(drop=True), bins)
     g = g.reset_index(drop=True)
     diffs = []

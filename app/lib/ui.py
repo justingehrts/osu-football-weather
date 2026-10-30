@@ -184,14 +184,17 @@ def pooled_reference(rows, pooled_n):
             st.markdown(f"{r.metric_name}: {num} {chip(r.label)}", unsafe_allow_html=True)
 
 
-def condition_chart(rows, view, metrics):
-    """The dot-and-range picture for one condition: right is always better, the dashed line is 'no difference'."""
+def condition_chart(rows, view, metrics, neutral=False):
+    """The dot-and-range picture for one condition: right is always better, the dashed line is 'no difference'.
+    neutral=True is for playcalling, where right means "threw more", not "better"."""
     df, missing = plain.chart_frame(rows, view["focal"], view["opponent"], view["pooled_n"], metrics)
     drawn = charts.condition_chart(df)
     if drawn:
         legend = " ".join(chip(l) for l in (logic.CLEAR, logic.LEANS, logic.NONE) if l in set(df.label))
+        right = ("<b>not better or worse</b>: right just means more passing (or more plays)" if neutral else
+                 "<b>right is always better</b>, even for points allowed")
         st.markdown(f'<div class="small">Dot = the change vs. that team\'s other games &middot; bar = how uncertain it is '
-                    f'&middot; dashed line = no difference &middot; <b>right is always better</b>, even for points allowed '
+                    f'&middot; dashed line = no difference &middot; {right} '
                     f'&nbsp;{legend}</div><div style="height:.4rem"></div>', unsafe_allow_html=True)
         # side by side on a wide screen; Streamlit stacks columns on a phone
         for col, ch in zip(st.columns(len(drawn)), drawn):

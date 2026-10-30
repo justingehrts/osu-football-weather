@@ -26,6 +26,9 @@ METRIC_INFO = {
     "ppa_off": ("Offense: expected points per play", "PPA", 3, ["passing", "scoring"]),
     "rush_ypc": ("Rushing", "yds/carry", 2, []),
     "turnovers": ("Turnovers", "per game", 2, []),
+    # playcalling: neither better nor worse, so no evidence tier (at most "Leans", like any single stat)
+    "pass_rate": ("Pass share of plays", "pct pts", 1, []),
+    "plays": ("Plays per game", "plays", 1, []),
 }
 WIND_NAME = {"calm": "Calm", "moderate": "Moderate wind", "windy": "Windy"}
 PRECIP_NAME = {"none": "Dry", "light": "Light rain", "steady": "Steady rain", "wet": "Any rain (light + steady)",
@@ -95,7 +98,9 @@ def anecdote_text(metric, a):
     if a is None or a.get("mean_in") is None:
         return None
     _, unit, dec, _ = METRIC_INFO[metric]
-    out = f"<b>{a['mean_in']:.{dec}f} {unit}</b> in these {a['n_in']} games"
+    if metric == "pass_rate":                      # an average share, not a change: say it as a share
+        unit = "% passes"
+    out = f"<b>{a['mean_in']:.{dec}f}{'' if unit.startswith('%') else ' '}{unit}</b> in these {a['n_in']} games"
     if a.get("mean_other") is not None:
         out += f" vs. {a['mean_other']:.{dec}f} in this team's other {a['n_other']} games"
     return out
@@ -282,6 +287,11 @@ def card_metrics(bins):
     return head, hood
 
 
+def playcall_metrics(bins):
+    """Playcalling stats (pass share, pace), shown neutrally in their own block under each condition's results."""
+    return list(bins.get("app", {}).get("playcalling_metrics") or [])
+
+
 def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side=False, scope="all",
                        typicals=None, first_season=None):
     """Everything the Gameday Card shows, as plain data. The page renders it; the blurb, CSV and PNG
@@ -320,13 +330,14 @@ def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side
     precip_bins = precip_bins_to_show(cond["precip"], side_by_side)
     view["badges"] = condition_badges(cond["wind"], cond["precip"], cond["temp"], cond["precip_prob"], bins)
     head, hood = card_metrics(bins)
-    view["headline_metrics"], view["hood_metrics"] = head, hood
+    play = playcall_metrics(bins)
+    view["headline_metrics"], view["hood_metrics"], view["playcall_metrics"] = head, hood, play
     for dim, bvs in (("wind", [cond["wind"]] if cond["wind"] else []), ("precip", precip_bins)):
         for bv in bvs:
             rows = []
             for team in (focal, opp, POOLED):
                 typical = (typicals or {}).get((team, dim, bv))
-                for m in head + hood:
+                for m in head + hood + play:
                     r = stats.result(team, dim, bv, m, scope)
                     text, verdict = plain.words(r)
                     r.extra.update(words=text, verdict=verdict, game_terms=plain.game_terms(r, typical),
@@ -382,6 +393,12 @@ def blurb(view):
                 continue
             lines.append(f"  {name}: " + "; ".join(
                 f"{r.metric_name} {r.extra.get('words') or r.text()} (n={r.n}, {r.label})" for r in rs))
+        for team in (view["focal"], view["opponent"], POOLED):
+            rs = [r for r in sec["rows"] if r.team == team and r.metric in view.get("playcall_metrics", []) and r.status == "ok"]
+            if rs:
+                name = f"All {view['pooled_n']} loaded teams" if team == POOLED else team
+                lines.append(f"  {name} playcalling (not better or worse): " + "; ".join(
+                    f"{r.metric_name} {r.extra.get('words') or r.text()} (n={r.n}, {r.label})" for r in rs))
         lines.append("")
     lines.append("Exploratory history, not a prediction. Source: OSU Football Weather Splits.")
     return "\n".join(lines).strip()

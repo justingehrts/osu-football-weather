@@ -128,6 +128,11 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
     gets its own sentence.
   - Card metrics come from `app.headline_metrics`; offensive PPA (`app.under_the_hood_metrics`) is only in the "Under the hood"
     expander.
+  - Playcalling (`pass_rate` = passes per 100 plays, `plays` = pace; `app.playcalling_metrics`) is NOT better or worse: it
+    gets its own "Playcalling" block under each condition, a neutral chart (axis "ran more / threw more", never flipped, no
+    good/bad words), and has no evidence tier, so it is at most Leans (never Clear signal). The on-air line gets one playcalling
+    sentence only for a Leans finding. It is box-score playcalling (game script and sacks-as-rushes are mixed in; the
+    Methodology page says so). Computed in the pipeline with the same controlled model; no extra CFBD calls.
   - Forecast details: distance to each bin line (borderline margins in `forecast.borderline`; borderline wind/rain shows a
     warning near the badges), trend across pulls, and the hour-by-hour window (`hours` in the snapshot's `detail` JSON).
 

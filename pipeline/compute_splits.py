@@ -51,7 +51,11 @@ import pandas as pd
 from .common import connect, load_bins
 from .weather_bins import confidence
 
-METRICS = ["pass_eff", "rush_ypc", "points", "points_allowed", "turnovers", "ppa_off"]
+CORE_METRICS = ["pass_eff", "rush_ypc", "points", "points_allowed", "turnovers", "ppa_off"]
+# Playcalling, not quality: "pass_rate" is passes per 100 offensive plays (passes + rushes; college box scores count
+# sacks as rushes), "plays" is offensive plays per game (pace). Neither is better or worse; the app shows them neutrally.
+PLAYCALL_METRICS = ["pass_rate", "plays"]
+METRICS = CORE_METRICS + PLAYCALL_METRICS
 GROUPS = {"passing": ["pass_eff", "ppa_off"], "scoring": ["points", "ppa_off"]}
 # Which opponent rating explains which metric: offense results vs their defense, and vice versa.
 RATING_FOR = {m: "opp_sp_def" for m in METRICS}
@@ -68,6 +72,12 @@ def game_values(df, metric):
         return (df["pass_yds"] / df["pass_att"].where(df["pass_att"] > 0)).to_numpy(float)
     if metric == "rush_ypc":
         return (df["rush_yds"] / df["rush_att"].where(df["rush_att"] > 0)).to_numpy(float)
+    needs = {"pass_rate": ("pass_att", "rush_att"), "plays": ("plays",)}.get(metric, ())
+    if any(c not in df for c in needs):            # (small synthetic samples in tests may not carry playcalling columns)
+        return np.full(len(df), np.nan)
+    if metric == "pass_rate":
+        snaps = (df["pass_att"] + df["rush_att"]).where(lambda x: x > 0)
+        return (100.0 * df["pass_att"] / snaps).to_numpy(float)
     return df[metric].astype(float).to_numpy()
 
 
