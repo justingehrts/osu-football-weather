@@ -24,7 +24,7 @@ def condition_chart(df):
         domain = [l for l in (CLEAR, LEANS, NONE) if l in set(df.label)]
         color = alt.Color("label:N", scale=alt.Scale(domain=domain, range=[LABEL_COLORS[l] for l in domain]), legend=None)
         y = alt.Y("who:N", title=None, sort=alt.EncodingSortField("who_order"), axis=alt.Axis(labelLimit=130))
-        x = alt.X("lo:Q", title="◄ worse  ·  better ►", scale=alt.Scale(zero=True, nice=True), axis=alt.Axis(tickCount=4))
+        x = alt.X("lo:Q", title=part["axis"].iloc[0] if "axis" in part else "◄ worse  ·  better ►", scale=alt.Scale(zero=True, nice=True), axis=alt.Axis(tickCount=4))
         base = alt.Chart(part)
         zero = base.mark_rule(strokeDash=[4, 3], color="#6b7480").encode(x="zero:Q")
         rng = base.mark_rule(strokeWidth=4, opacity=0.45).encode(x=x, x2="hi:Q", y=y, color=color)

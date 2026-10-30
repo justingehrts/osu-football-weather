@@ -115,6 +115,28 @@ st.markdown(f"""
   forecast change could switch the history used), how the forecast has moved across pulls, and the hour-by-hour game window.
 """)
 
+st.header("Playcalling: how teams play, not how well")
+st.markdown(f"""
+Under each condition's results there is a **Playcalling** block with two stats, built the same way as every other number
+(that team's games in the condition vs. its **other** games, opponent strength, month and home/away held fixed, {ci}% interval):
+
+- **Pass share of plays**: passes per 100 offensive plays (passes + rushes). "4.1 points less passing" means about 4 fewer passes
+  per 100 plays. The game-sized line turns it into passes a game using the team's plain plays per game in its other games.
+- **Plays per game**: pace. Rain can slow a game down; this shows whether it actually does.
+
+Three things are different from the results above:
+- **It is not better or worse.** Throwing less in wind is a choice, not a failure, so there are no good/bad words and the chart is
+  not flipped: right just means *more passing* (or more plays). The block is labelled as such.
+- **It can reach "Leans" but never "Clear signal".** A Clear signal needs two related stats agreeing, and pass share has no partner,
+  so, like points allowed or rushing, it tops out at Leans (n of {bins['confidence']['thin_below_n']}+ games and an interval that stays on one side of zero).
+  "No clear effect" is a real result here too: many teams barely change how they call plays in wind.
+- **Game script is mixed in.** A team that falls behind throws more, and a team that is winning runs the ball. Box scores can't
+  separate that from weather, so a shift is *what happened*, not necessarily *what the coach planned*. (Separating them needs
+  play-by-play data, which isn't loaded.) Also, college box scores count sacks as rushes, so pass share slightly understates dropbacks.
+
+The on-air line mentions playcalling only for a Leans finding, with the same hedges.
+""")
+
 st.header("Temperature is context only")
 st.markdown("Temperature results are mostly the calendar in disguise (warm = September, cold = November), and even after controls they differ a lot from team to team. "
             "So temperature is **never** in the takeaway or the card headline. You can find it in the Explorer and in an expander labelled "

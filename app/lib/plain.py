@@ -18,13 +18,18 @@ import pandas as pd
 from .logic import CLEAR, FEW, LEANS, METRIC_INFO, NONE, POOLED, RANK
 
 # +1: higher is better for that team; -1: lower is better
-GOOD = {"pass_eff": 1, "points": 1, "points_allowed": -1, "ppa_off": 1, "rush_ypc": 1, "turnovers": -1}
+# 0 = playcalling: neither better nor worse, so there is no good direction (and the chart is not flipped)
+GOOD = {"pass_eff": 1, "points": 1, "points_allowed": -1, "ppa_off": 1, "rush_ypc": 1, "turnovers": -1,
+        "pass_rate": 0, "plays": 0}
 # how a change in each stat is said out loud
 SAY = {"pass_eff": ("more", "fewer", "yards per pass"), "points": ("more", "fewer", "points"),
        "points_allowed": ("more", "fewer", "points allowed"), "ppa_off": ("higher", "lower", "expected points per play"),
-       "rush_ypc": ("more", "fewer", "yards per carry"), "turnovers": ("more", "fewer", "turnovers")}
+       "rush_ypc": ("more", "fewer", "yards per carry"), "turnovers": ("more", "fewer", "turnovers"),
+       "pass_rate": ("points more", "points less", "passing"), "plays": ("more", "fewer", "plays")}
 SHORT = {"pass_eff": "yds/pass", "points": "pts", "points_allowed": "pts allowed", "ppa_off": "PPA/play",
-         "rush_ypc": "yds/carry", "turnovers": "turnovers"}
+         "rush_ypc": "yds/carry", "turnovers": "turnovers", "pass_rate": "passing", "plays": "plays"}
+# x-axis wording for the neutral (playcalling) charts; everything else uses the "worse / better" axis
+NEUTRAL_AXIS = {"pass_rate": "◄ ran more  ·  threw more ►", "plays": "◄ fewer plays  ·  more plays ►"}
 GAMES_WORD = {"calm": "calm", "moderate": "moderate-wind", "windy": "windy", "none": "dry", "light": "light-rain",
               "steady": "steady-rain", "wet": "rainy"}
 
@@ -72,7 +77,16 @@ def game_terms_short(r, typical):
     if r.metric in ("points", "points_allowed"):
         pct = r.value / base * 100
         return f"{abs(pct):.0f}% {'above' if pct > 0 else 'below'} usual"
+    if r.metric == "pass_rate":
+        passes = _passes_a_game(r, typical)
+        return f"≈{abs(round(passes))} {'more' if passes > 0 else 'fewer'} passes/game" if passes is not None and round(passes) else None
     return None
+
+
+def _passes_a_game(r, typical):
+    """A pass-share change (points of share) as passes a game, using the team's plain plays per game in its other games."""
+    plays = (typical.get("plays") or {}).get("mean_other")
+    return None if not plays else r.value / 100 * plays
 
 
 def game_terms(r, typical):
@@ -97,6 +111,16 @@ def game_terms(r, typical):
         return f"{abs(pct):.0f}% {'above' if pct > 0 else 'below'} the ~{base:.0f} points a game they usually score in other games"
     if r.metric == "points_allowed":
         return f"{abs(pct):.0f}% {'above' if pct > 0 else 'below'} the ~{base:.0f} points a game they usually allow in other games"
+    if r.metric == "pass_rate":
+        said = f"passes on about {base + r.value:.0f}% of plays vs. usually {base:.0f}% in other games"
+        passes = _passes_a_game(r, typical)
+        k = abs(round(passes)) if passes is not None else 0
+        return said + (f" · about {k} {'more' if passes > 0 else 'fewer'} {'pass' if k == 1 else 'passes'} a game" if k else "")
+    if r.metric == "plays":
+        if round(abs(r.value)) == 0:
+            return f"about the usual {base:.0f} plays a game"
+        k = abs(round(r.value))
+        return f"about {k} {'more' if r.value > 0 else 'fewer'} {'play' if k == 1 else 'plays'} a game ({pct:+.0f}%) · usually {base:.0f} in other games"
     return None
 
 
@@ -114,12 +138,13 @@ def chart_frame(rows, focal, opponent, pooled_n, metrics):
             if r.status == "ok":
                 missing.append(f"{who_name[r.team]}: {METRIC_INFO[r.metric][0].lower()} ({r.label.lower()}, n={r.n})")
             continue
-        g = GOOD[r.metric]
+        g = GOOD[r.metric] or 1                           # playcalling is not flipped: it has no better direction
         lo, hi = sorted((r.lo * g, r.hi * g))
         text, verdict = words(r, short=True)
         drawn.append({"metric": METRIC_INFO[r.metric][0], "metric_order": metrics.index(r.metric),
                       "who": who_name[r.team], "who_order": order[r.team], "better": r.value * g, "lo": lo, "hi": hi,
-                      "label": r.label, "n": r.n, "in_words": text + (f" ({verdict})" if verdict else ""), "zero": 0.0})
+                      "label": r.label, "n": r.n, "in_words": text + (f" ({verdict})" if verdict else ""), "zero": 0.0,
+                      "axis": NEUTRAL_AXIS.get(r.metric, "◄ worse  ·  better ►")})
     return pd.DataFrame(drawn), missing
 
 
@@ -128,6 +153,23 @@ def _reason(label, n, bins):
     if label != LEANS:
         return ""
     return f"but that's only {n} games" if n < bins["app"]["clear_signal_min_n"] else "but it's not a consistent pattern"
+
+
+def _playcall_sentence(stats, focal, opp, wind, precip, bins):
+    """At most ONE playcalling sentence, only for a Leans finding (pass share has no second stat, so it can never be
+    'Clear signal'). Wind before rain, focal team first. Not better or worse, so no value words: 'throw more/less'."""
+    for dim, bv in (("wind", wind), ("precip", precip)):
+        if not bv:
+            continue
+        for team in (focal, opp):
+            if not team or not stats.loaded(team):
+                continue
+            r = stats.result(team, dim, bv, "pass_rate")
+            if r.label == LEANS and _shows(r) and abs(r.value) >= 0.5:
+                up = r.value > 0
+                return (f"{team} has tended to throw {'more' if up else 'less'} in {GAMES_WORD[bv]} games: about {abs(r.value):.0f} "
+                        f"{'more' if up else 'fewer'} passes per 100 plays, {_reason(LEANS, r.n, bins)}.")
+    return None
 
 
 def on_air_line(stats, focal, opp, wind, precip, bins, typicals, first_season, precip_prob=None, max_items=2):
@@ -184,6 +226,9 @@ def on_air_line(stats, focal, opp, wind, precip, bins, typicals, first_season, p
                 else:
                     out.append(f"{team} has tended to score {'a bit more' if up else 'a bit less'} in {cond}, {_reason(label, n, bins)}.")
     out = out[:max_items - 1] if uncertain else out[:max_items]
+    pc = _playcall_sentence(stats, focal, opp, wind, None if uncertain else precip, bins)
+    if pc:
+        out.append(pc)
     if uncertain:
         out.append(f"Rain is a toss-up{f' at {precip_prob:.0f}%' if precip_prob is not None else ''}, so there's no single rain story yet.")
     if not out:

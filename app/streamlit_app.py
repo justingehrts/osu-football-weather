@@ -81,7 +81,7 @@ def typicals_for(game, forecast):
 
 view = logic.build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side, scope,
                                 typicals=typicals_for(game, forecast), first_season=teams.get("first_season"))
-head_m, hood_m = view.get("headline_metrics", []), view.get("hood_metrics", [])
+head_m, hood_m, play_m = view.get("headline_metrics", []), view.get("hood_metrics", []), view.get("playcall_metrics", [])
 precip_uncertain = view.get("conditions", {}).get("precip") == "uncertain"
 
 # ---- header, forecast, takeaway ---------------------------------------------------------------
@@ -129,6 +129,20 @@ else:
         st.caption("All numbers below compare a team's games in these conditions with its **other** games (for example, windy vs. not windy), "
                    "with opponent strength, time of season and home/away held fixed. Exploratory: not a prediction.")
 
+
+def playcall_block(sec, prefix):
+    """How each team CALLS plays in this condition (pass share, pace). Not better or worse, so its own neutral block."""
+    if not play_m or not any(r.metric in play_m for r in sec["rows"]):
+        return
+    st.markdown("##### Playcalling: how they play, not how well")
+    ui.condition_chart(sec["rows"], view, play_m, neutral=True)
+    cols = st.columns(2)
+    for col, team in zip(cols, (view["focal"], view["opponent"])):
+        with col:
+            ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in play_m], team, prefix)
+    ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in play_m], pn)
+
+
 # ---- the comparison: wind first, then rain ----------------------------------------------------
 pn = view["pooled_n"]
 for sec in [s for s in view["sections"] if s["dim"] == "wind"]:
@@ -139,6 +153,7 @@ for sec in [s for s in view["sections"] if s["dim"] == "wind"]:
         with col:
             ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, "w")
     ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in head_m], pn)
+    playcall_block(sec, "wpc")
 
 psecs = [s for s in view["sections"] if s["dim"] == "precip"]
 if psecs:
@@ -155,6 +170,7 @@ if psecs:
             with col:
                 ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, f"p{sec['bin']}")
         ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in head_m], pn)
+        playcall_block(sec, f"p{sec['bin']}pc")
     if any(s["bin"] == "steady" for s in psecs):
         st.caption("Steady rain is rare, so it is capped at **Leans** and kept separate from light rain.")
 

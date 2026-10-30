@@ -112,7 +112,9 @@ def last_forecast_time(fconn):
 
 AVG_EXPR = {"pass_eff": "CASE WHEN t.pass_att > 0 THEN t.pass_yds * 1.0 / t.pass_att END",
             "points": "t.points", "points_allowed": "t.points_allowed", "ppa_off": "t.ppa_off",
-            "pass_att": "t.pass_att"}      # attempts: turns a per-pass change into passing yards a game
+            "pass_att": "t.pass_att",      # attempts: turns a per-pass change into passing yards a game
+            "pass_rate": "CASE WHEN t.pass_att + t.rush_att > 0 THEN 100.0 * t.pass_att / (t.pass_att + t.rush_att) END",
+            "plays": "t.plays"}            # offensive plays: turns a pass-share change into passes a game
 
 
 def raw_block_averages(conn, bins, team, bin_type, bin_value, exclude_covid=False):

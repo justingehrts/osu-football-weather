@@ -38,7 +38,7 @@ if team in teams["deferred"] or not stats.loaded(team):
     st.info(f"**{team}: data not loaded yet.** This team's history hasn't been loaded; the rest of the app is unaffected.")
     st.stop()
 
-METRICS = ["pass_eff", "points", "points_allowed", "ppa_off", "rush_ypc", "turnovers"]
+METRICS = ["pass_eff", "points", "points_allowed", "ppa_off", "rush_ypc", "turnovers", "pass_rate", "plays"]   # last two: playcalling (neutral)
 pn = stats.pooled_n
 
 
