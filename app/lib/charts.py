@@ -8,6 +8,7 @@ interval numbers live in expanders); the bar shows the uncertainty visually.
 import altair as alt
 import pandas as pd
 
+from . import timefmt
 from .logic import CLEAR, LEANS, NONE
 
 LABEL_COLORS = {CLEAR: "#0b4f8a", LEANS: "#d99a14", NONE: "#9aa3ad"}
@@ -39,29 +40,36 @@ def condition_chart(df):
     return out
 
 
-def hourly_chart(hours, bins):
-    """Wind (bars), gusts (dots) and chance of rain (line, right axis) for each hour of the game window,
-    with dashed lines where 'windy' starts."""
+def hourly_charts(hours, bins, tz=None):
+    """Two charts, one above the other (the page draws them one after the other; a single stacked chart overflowed a
+    phone), so a high chance of rain can't hide the wind:
+    top = sustained wind (bars) and gusts (triangles) with dashed lines where 'windy' starts;
+    bottom = chance of rain (0-100%). Hours are in the stadium's local time (`tz`), with ET in brackets when that differs."""
     if not hours:
-        return None
+        return []
     df = pd.DataFrame(hours)
-    df["time"] = pd.to_datetime(df["time"], utc=True).dt.tz_convert("America/New_York").dt.strftime("%-I %p")
+    title = f"Hour ({timefmt.zone_title(tz, df['time'].iloc[0])})"
+    df["time"] = [timefmt.hour_label(t, tz) for t in df["time"]]
     order = list(df["time"])
     w = bins["wind"]["windy"]
-    x = alt.X("time:N", sort=order, title="Hour (ET)", axis=alt.Axis(labelAngle=0))
-    bars = alt.Chart(df).mark_bar(color="#5b7fa6", opacity=0.75).encode(
-        x=x, y=alt.Y("wind:Q", title="Wind / gusts (mph)"),
-        tooltip=[alt.Tooltip("time:N", title="Hour"), alt.Tooltip("wind:Q", title="Sustained (mph)"),
-                 alt.Tooltip("gust:Q", title="Gusts (mph)"), alt.Tooltip("pop:Q", title="Chance of rain (%)"),
-                 alt.Tooltip("rain_in:Q", title="Rain (in.)"), alt.Tooltip("temp_f:Q", title="Temp (°F)")])
-    gusts = alt.Chart(df).mark_point(filled=True, color="#1d2733", size=70, shape="triangle-up").encode(x=x, y="gust:Q")
+    tip = [alt.Tooltip("time:N", title="Hour"), alt.Tooltip("wind:Q", title="Sustained (mph)"),
+           alt.Tooltip("gust:Q", title="Gusts (mph)"), alt.Tooltip("pop:Q", title="Chance of rain (%)"),
+           alt.Tooltip("rain_in:Q", title="Rain (in.)"), alt.Tooltip("temp_f:Q", title="Temp (°F)")]
+    x_top = alt.X("time:N", sort=order, title=None, axis=alt.Axis(labels=False, ticks=False))
+    x_bot = alt.X("time:N", sort=order, title=title,
+                  axis=alt.Axis(labelAngle=0, labelExpr="split(datum.label, '|')"))      # '|' = line break in the label
+    bars = alt.Chart(df).mark_bar(color="#5b7fa6", opacity=0.8).encode(
+        x=x_top, y=alt.Y("wind:Q", title="Wind / gusts (mph)", axis=alt.Axis(minExtent=48)), tooltip=tip)
+    gusts = alt.Chart(df).mark_point(filled=True, color="#1d2733", size=70, shape="triangle-up").encode(
+        x=x_top, y="gust:Q", tooltip=tip)
     lines = alt.Chart(pd.DataFrame({"y": [w["sustained_min"], w["or_gust_min"]],
                                     "what": [f"windy: sustained {w['sustained_min']}+", f"windy: gusts {w['or_gust_min']}+"]})
                       ).mark_rule(strokeDash=[5, 4], color="#b0413e").encode(y="y:Q", tooltip="what:N")
-    left = alt.layer(bars, gusts, lines)
-    rain = alt.Chart(df).mark_line(point=True, color="#2a9d8f").encode(
-        x=x, y=alt.Y("pop:Q", title="Chance of rain (%)", scale=alt.Scale(domain=[0, 100])))
-    return alt.layer(left, rain).resolve_scale(y="independent").properties(height=200)
+    wind = alt.layer(bars, gusts, lines).properties(height=170, width="container")
+    rain = alt.Chart(df).mark_bar(color="#2a9d8f", opacity=0.8).encode(
+        x=x_bot, y=alt.Y("pop:Q", title="Chance of rain (%)", scale=alt.Scale(domain=[0, 100]), axis=alt.Axis(tickCount=3, minExtent=48)),
+        tooltip=tip).properties(height=190, width="container")   # (Streamlit counts the two-line labels and title inside this)
+    return [wind, rain]            # minExtent keeps both left axes the same width, so the hours line up
 
 
 def trend_chart(history):

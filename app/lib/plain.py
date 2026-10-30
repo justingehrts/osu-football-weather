@@ -325,5 +325,5 @@ def forecast_trend(history):
     change("rain chance", a.precip_prob, z.precip_prob, "%", 10)
     bin_moves = [f"{k} {a[c]} to {z[c]}" for k, c in (("wind bin", "wind_bin"), ("rain bin", "precip_bin")) if a[c] != z[c]]
     when = pd.to_datetime(a.snapshot_utc, utc=True).tz_convert("America/New_York").strftime("%a %-I %p")
-    text = f"Since {when} ({len(ok)} pulls): " + ", ".join(bits) + (". Card changed: " + "; ".join(bin_moves) + "." if bin_moves else ". Card unchanged.")
+    text = f"Since {when} ET ({len(ok)} pulls): " + ", ".join(bits) + (". Card changed: " + "; ".join(bin_moves) + "." if bin_moves else ". Card unchanged.")
     return text, ok

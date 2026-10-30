@@ -133,6 +133,11 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
     good/bad words), and has no evidence tier, so it is at most Leans (never Clear signal). The on-air line gets one playcalling
     sentence only for a Leans finding. It is box-score playcalling (game script and sacks-as-rushes are mixed in; the
     Methodology page says so). Computed in the pipeline with the same controlled model; no extra CFBD calls.
+  - Game times are shown in the STADIUM's local time, with ET in brackets when it differs ("4:30 PM PT (7:30 PM ET)"; plain
+    "7:30 PM ET" on Eastern time). The zone is `venues.tz`, filled in the pipeline from the venue's coordinates
+    (`pipeline/venue_tz.py`, `timezonefinder`, no web calls); a venue with no zone falls back to ET. Dates (game picker, season
+    table, evidence lists) are the stadium's local date. Times a forecast was PULLED stay in ET. Helpers: `app/lib/timefmt.py`.
+  - The hour-by-hour forecast is two charts, wind/gusts on top and chance of rain below, so a high chance of rain can't hide the wind.
   - Forecast details: distance to each bin line (borderline margins in `forecast.borderline`; borderline wind/rain shows a
     warning near the badges), trend across pulls, and the hour-by-hour window (`hours` in the snapshot's `detail` JSON).
 

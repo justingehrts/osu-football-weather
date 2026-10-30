@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pandas as pd                                    # noqa: E402
 import streamlit as st                                  # noqa: E402
 
-from lib import charts, data, export, logic, plain, ui  # noqa: E402
+from lib import charts, data, export, logic, plain, timefmt, ui  # noqa: E402
 
 ui.setup("Gameday Card")
 res = ui.resources()
@@ -25,6 +25,7 @@ def _idx(opts, val):
 
 
 def tz_local(ts, fmt="%a %b %d, %-I:%M %p ET"):
+    """Eastern time. Used for when a forecast was PULLED (not a game time); game times use timefmt in local time."""
     return pd.to_datetime(ts, utc=True).tz_convert("America/New_York").strftime(fmt)
 
 
@@ -37,7 +38,7 @@ if sched.empty:
 # ---- which game -------------------------------------------------------------------------------
 default_game = data.next_game(sched)
 labels = {int(r.game_id): f"Wk {int(r.week)} · {'at' if r.site == 'away' else 'vs.'} {r.opponent} · "
-          f"{tz_local(r.kickoff_utc, '%b %d') if r.kickoff_utc else 'TBD'}"
+          f"{timefmt.local_day(r.kickoff_utc, r.tz) if r.kickoff_utc else 'TBD'}"
           + (" · played" if r.completed else "") for r in sched.itertuples()}
 want = ui.qp("game")
 gid = int(want) if want and want.isdigit() and int(want) in labels else int(default_game["game_id"])
@@ -86,7 +87,7 @@ precip_uncertain = view.get("conditions", {}).get("precip") == "uncertain"
 
 # ---- header, forecast, takeaway ---------------------------------------------------------------
 ui.matchup_header(view)
-meta = " · ".join(x for x in [view.get("venue"), tz_local(game["kickoff_utc"]) if game.get("kickoff_utc") and not game.get("kickoff_tbd") else "kickoff time TBD"] if x)
+meta = " · ".join(x for x in [view.get("venue"), timefmt.game_time(game["kickoff_utc"], game.get("tz")) if game.get("kickoff_utc") and not game.get("kickoff_tbd") else "kickoff time TBD"] if x)
 st.caption(meta)
 
 status = view["forecast_status"]
@@ -255,18 +256,19 @@ if status not in ("played", "indoor"):
                     st.altair_chart(tc, width="stretch")
             else:
                 st.caption("Only one usable forecast pull so far; the trend appears after the next one.")
-            st.markdown("**Hour by hour, kickoff to +3.5 h** (latest pull)")
+            st.markdown("**Hour by hour, kickoff to +3.5 h** (latest pull, in the stadium's local time)")
             hours = []
             if forecast and forecast.get("detail"):
                 try:
                     hours = (json.loads(forecast["detail"]) or {}).get("hours") or []
                 except (TypeError, ValueError):
                     hours = []
-            hc = charts.hourly_chart(hours, bins)
-            if hc is not None:
-                st.altair_chart(hc, width="stretch")
-                st.caption("Bars = sustained wind, triangles = gusts, dashed red lines = where 'windy' starts, green line = "
-                           "chance of rain (right axis). The card uses the strongest wind and the total rain in the window.")
+            hcs = charts.hourly_charts(hours, bins, game.get("tz"))
+            if hcs:
+                for hc in hcs:
+                    st.altair_chart(hc, width="stretch")
+                st.caption("Top: bars = sustained wind, triangles = gusts, dashed red lines = where 'windy' starts. Bottom: chance of rain "
+                           "each hour. The card uses the strongest wind and the total rain in the window.")
             else:
                 st.caption("No hour-by-hour values in this pull yet (pulls made before this feature only kept the window summary).")
             st.markdown("**Every pull (kept, never overwritten)**")
@@ -294,7 +296,7 @@ for r in sched.itertuples():
             weather = "beyond the forecast horizon"
         else:
             weather = f["status"].replace("_", " ")
-    rows.append({"Wk": int(r.week), "Date": tz_local(r.kickoff_utc, "%b %d") if r.kickoff_utc else "TBD", "Opponent": r.opponent,
+    rows.append({"Wk": int(r.week), "Date": timefmt.local_day(r.kickoff_utc, r.tz) if r.kickoff_utc else "TBD", "Opponent": r.opponent,
                  "Site": r.site, "Result": result, "Weather": weather})
 st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=36 * (len(rows) + 1) + 3)
 
