@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # so `lib.*` imports work from pages/
-from lib import charts, colors, config, data, logic, plain      # noqa: E402
+from lib import charts, colors, config, data, logic, plain, timefmt      # noqa: E402
 
 CHIP_CLASS = {logic.CLEAR: "clear", logic.LEANS: "leans", logic.NONE: "none", logic.FEW: "few", logic.CONTEXT: "ctx"}
 CSS = """
@@ -85,7 +85,7 @@ def games_frame(games):
     if games.empty:
         return games
     d = pd.DataFrame({
-        "Date": pd.to_datetime(games.kickoff_utc, utc=True).dt.tz_convert("America/New_York").dt.strftime("%b %d, %Y"),
+        "Date": [timefmt.local_day(k, z, "%b %d, %Y") for k, z in zip(games.kickoff_utc, games.tz)],      # stadium-local date
         "Opponent": games.opponent, "Site": [("neutral" if n else h) for n, h in zip(games.neutral_site, games.home_away)],
         "Venue": games.venue,
         "Observed weather": [f"{t:.0f}°F, wind {w:.0f} mph" + (f" (gusts {g:.0f})" if pd.notna(g) and g > w + 1 else "") + f", rain {p:.2f} in" + (", snow" if s else "")

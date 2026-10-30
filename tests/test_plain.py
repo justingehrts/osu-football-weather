@@ -129,9 +129,9 @@ def test_forecast_trend_compares_first_and_latest_pull_and_says_if_the_card_chan
 
 def test_hourly_chart_draws_the_windy_lines_from_config():
     hours = [{"time": "2026-10-31T23:00:00+00:00", "wind": 14, "gust": 24, "pop": 50, "rain_in": 0.02, "temp_f": 53}]
-    spec = json.dumps(charts.hourly_chart(hours, BINS).to_dict())
+    spec = json.dumps(charts.hourly_charts(hours, BINS)[0].to_dict())
     assert str(BINS["wind"]["windy"]["sustained_min"]) in spec and str(BINS["wind"]["windy"]["or_gust_min"]) in spec
-    assert charts.hourly_chart([], BINS) is None
+    assert charts.hourly_charts([], BINS) == []
 
 
 # --------------------------------------------------------------------------- PPA lives under the hood
@@ -160,3 +160,11 @@ def test_gameday_page_shows_the_on_air_line_chart_forecast_details_and_hides_ppa
     assert "fewer" in page or "more" in page                                  # words, not bare signs
     details = [e for e in at.expander if e.label.startswith("Forecast details")][0]
     assert any("pulls)" in m.value for m in details.markdown)                 # the trend sentence
+
+
+def test_hourly_chart_keeps_rain_chance_in_its_own_panel_so_it_cannot_hide_the_wind():
+    hours = [{"time": "2026-10-31T23:00:00+00:00", "wind": 14, "gust": 24, "pop": 90, "rain_in": 0.02, "temp_f": 53}]
+    top, bottom = [c.to_dict() for c in charts.hourly_charts(hours, BINS)]
+    wind_fields = {l["encoding"]["y"]["field"] for l in top["layer"] if "field" in l["encoding"]["y"]}
+    assert wind_fields == {"wind", "gust", "y"}                                         # top panel plots wind only (rain is just in the hover)
+    assert bottom["encoding"]["y"]["field"] == "pop" and bottom["encoding"]["y"]["scale"]["domain"] == [0, 100]

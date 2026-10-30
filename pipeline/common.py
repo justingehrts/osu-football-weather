@@ -54,7 +54,7 @@ def connect(db_path=DB_PATH):
         conn.executescript(wanted)
     # tables that already exist in the committed database get any newer columns added in place
     for table, cols_ in {"games": {"home_class": "TEXT", "away_class": "TEXT"},
-                         "venues": {"first_seen": "TEXT"}}.items():
+                         "venues": {"first_seen": "TEXT", "tz": "TEXT"}}.items():
         have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         for col, typ in cols_.items():
             if col not in have:

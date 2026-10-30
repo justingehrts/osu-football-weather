@@ -29,7 +29,7 @@ def schedule(conn, team, season):
     q = pd.read_sql_query(
         """SELECT g.game_id, g.week, g.season_type, g.kickoff_utc, g.kickoff_tbd, g.completed, g.neutral_site,
                   g.home_team, g.away_team, g.home_points, g.away_points,
-                  v.venue_id, v.name AS venue, v.dome, v.lat, v.lon,
+                  v.venue_id, v.name AS venue, v.dome, v.lat, v.lon, v.tz,
                   w.temp_f_mean, w.wind_sust_max, w.wind_gust_max, w.precip_in_total, w.snow_flag, w.weather_ok,
                   w.wind_bin, w.precip_bin, w.temp_bin
            FROM games g LEFT JOIN venues v ON v.venue_id = g.venue_id
@@ -78,7 +78,7 @@ def evidence_games(conn, bins, team, bin_type, bin_value, exclude_covid=False):
     extra = f" AND season NOT IN ({','.join(str(int(y)) for y in covid)})" if exclude_covid and covid else ""
     q = pd.read_sql_query(
         f"""SELECT t.game_id, t.season, t.kickoff_utc, t.opponent, t.home_away, t.neutral_site,
-                   v.name AS venue, t.temp_f_mean, t.wind_sust_max, t.wind_gust_max, t.precip_in_total, t.snow_flag,
+                   v.name AS venue, v.tz, t.temp_f_mean, t.wind_sust_max, t.wind_gust_max, t.precip_in_total, t.snow_flag,
                    t.points, t.points_allowed, t.pass_yds, t.pass_att, t.rush_yds, t.rush_att, t.turnovers, t.ppa_off,
                    t.opp_sp
             FROM team_game_weather t LEFT JOIN venues v ON v.venue_id = t.venue_id
@@ -89,7 +89,7 @@ def evidence_games(conn, bins, team, bin_type, bin_value, exclude_covid=False):
 
 def snow_games(conn):
     return pd.read_sql_query(
-        """SELECT g.game_id, g.kickoff_utc, g.home_team, g.away_team, g.home_points, g.away_points, v.name AS venue,
+        """SELECT g.game_id, g.kickoff_utc, g.home_team, g.away_team, g.home_points, g.away_points, v.name AS venue, v.tz,
                   w.temp_f_mean, w.wind_sust_max, w.wind_gust_max, w.precip_in_total, w.vis_min
            FROM weather_obs w JOIN games g ON g.game_id = w.game_id LEFT JOIN venues v ON v.venue_id = g.venue_id
            WHERE w.snow_flag = 1 AND w.weather_ok = 1 AND g.completed = 1

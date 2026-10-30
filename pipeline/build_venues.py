@@ -9,6 +9,7 @@ from datetime import date
 from .cfbd import CfbdClient, pick
 from .common import connect, haversine_mi, load_bins, load_yaml
 from .stations import load_catalog, nearest_station
+from .venue_tz import fill_missing as fill_venue_timezones
 
 US_BOX = (24.0, 50.0, -125.0, -66.0)  # lat_min, lat_max, lon_min, lon_max (lower 48)
 
@@ -103,6 +104,7 @@ def run(conn=None, client=None):
              round(dist, 1) if dist is not None else None, far or 0, src, "; ".join(notes),
              date.today().isoformat()))
     prune_unusable_weather(conn)
+    fill_venue_timezones(conn)
     conn.commit()
     flagged = conn.execute("SELECT COUNT(*) FROM venues WHERE notes != ''").fetchone()[0]
     print(f"{len(ids)} venues processed, {flagged} with flags (see venues.notes).")

@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd                         # noqa: E402
 import streamlit as st                      # noqa: E402
 
-from lib import data, logic, ui             # noqa: E402
+from lib import data, logic, timefmt, ui    # noqa: E402
 
 ui.setup("Evidence", "🗂️")
 res = ui.resources()
@@ -38,7 +38,7 @@ if snow.empty:
     st.info("No snow games found in the loaded history.")
 else:
     d = pd.DataFrame({
-        "Date": pd.to_datetime(snow.kickoff_utc, utc=True).dt.tz_convert("America/New_York").dt.strftime("%b %d, %Y"),
+        "Date": [timefmt.local_day(k, z, "%b %d, %Y") for k, z in zip(snow.kickoff_utc, snow.tz)],
         "Game": [f"{a} at {h}" for a, h in zip(snow.away_team, snow.home_team)], "Venue": snow.venue,
         "Observed": [f"{t:.0f}°F, wind {w:.0f} mph, rain/melted {p:.2f} in., visibility {v:.1f} mi" for t, w, p, v in zip(snow.temp_f_mean, snow.wind_sust_max, snow.precip_in_total, snow.vis_min)],
         "Score": [f"{a} {int(ap)}, {h} {int(hp)}" for a, ap, h, hp in zip(snow.away_team, snow.away_points, snow.home_team, snow.home_points)]})

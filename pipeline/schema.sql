@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS venues (
   station_far INTEGER,          -- (+) 1 if farther than quality.far_station_miles
   coord_source TEXT,            -- (+) where the coordinates came from
   first_seen TEXT,              -- (+) date the venue was first added (marks NEW venues in reports)
+  tz TEXT,                      -- (+) IANA time zone of the venue (the app shows game times in local time, with ET beside it)
   notes TEXT                    -- (+) data-quality flags, semicolon separated
 );
 CREATE TABLE IF NOT EXISTS games (
