@@ -115,8 +115,7 @@ else:
             st.caption("🔧 What-If: these are your chosen conditions, not the forecast.")
         elif forecast and forecast.get("status") == "ok":
             st.caption(f"{forecast['source'].upper()} forecast pulled {tz_local(forecast['snapshot_utc'])}, for kickoff to +3.5 h: "
-                       f"wind up to {forecast['wind_sust']:.0f} mph (gusts {forecast['wind_gust']:.0f}), chance of rain {forecast['precip_prob']:.0f}%, "
-                       f"{forecast['precip_amt']:.2f} in., {forecast['temp_f']:.0f}°F.")
+                       f"{plain.forecast_values_text(forecast)}")
             _, near = plain.bin_distances(forecast, bins)
             if near:
                 st.warning("**Borderline forecast:** " + "; ".join(near) + ". A small change in the forecast could change "

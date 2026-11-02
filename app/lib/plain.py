@@ -242,6 +242,22 @@ def on_air_line(stats, focal, opp, wind, precip, bins, typicals, first_season, p
 
 
 # --------------------------------------------------------------------------- 5. the forecast: bin lines and trend
+def forecast_values_text(fc):
+    """The forecast's numbers as one phrase. NWS sometimes gives no rain AMOUNT (or another value) for a window, so every
+    piece is optional: a missing value is skipped (or said to be missing), never formatted."""
+    def have(k):
+        return fc.get(k) is not None and not pd.isna(fc[k])
+    bits = []
+    if have("wind_sust"):
+        bits.append(f"wind up to {fc['wind_sust']:.0f} mph" + (f" (gusts {fc['wind_gust']:.0f})" if have("wind_gust") else ""))
+    if have("precip_prob"):
+        bits.append(f"chance of rain {fc['precip_prob']:.0f}%")
+    bits.append(f"{fc['precip_amt']:.2f} in. of rain" if have("precip_amt") else "rain amount not given")
+    if have("temp_f"):
+        bits.append(f"{fc['temp_f']:.0f}°F")
+    return ", ".join(bits) + "."
+
+
 def bin_distances(fc, bins):
     """How close is each forecast number to the line where the card would change? -> (rows, borderline_notes)."""
     if not fc or fc.get("status") != "ok":

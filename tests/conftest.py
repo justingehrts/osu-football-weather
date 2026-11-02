@@ -37,7 +37,7 @@ def _build_forecast_fixture():
     if len(games) > 1:
         f.execute(f"INSERT INTO forecast_snapshots({cols}) VALUES ('2026-10-28T18:00:00',?, 'beyond_horizon',NULL,210,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'kickoff is 8.8 days out')", (games[1][0],))
     if len(games) > 2:
-        f.execute(f"INSERT INTO forecast_snapshots({cols}) VALUES ('2026-10-28T18:00:00',?, 'ok','nws',100,12,20,50,0.05,60,'moderate','uncertain','mild',1,NULL)", (games[2][0],))
+        f.execute(f"INSERT INTO forecast_snapshots({cols}) VALUES ('2026-10-28T18:00:00',?, 'ok','nws',100,12,20,50,NULL,60,'moderate','uncertain','mild',1,NULL)", (games[2][0],))
     f.commit()
 
 
