@@ -168,3 +168,23 @@ def test_hourly_chart_keeps_rain_chance_in_its_own_panel_so_it_cannot_hide_the_w
     wind_fields = {l["encoding"]["y"]["field"] for l in top["layer"] if "field" in l["encoding"]["y"]}
     assert wind_fields == {"wind", "gust", "y"}                                         # top panel plots wind only (rain is just in the hover)
     assert bottom["encoding"]["y"]["field"] == "pop" and bottom["encoding"]["y"]["scale"]["domain"] == [0, 100]
+
+
+def test_forecast_caption_survives_missing_values():
+    full = {"wind_sust": 8.06, "wind_gust": 12.66, "precip_prob": 3.0, "precip_amt": 0.0, "temp_f": 58.3}
+    assert plain.forecast_values_text(full) == "wind up to 8 mph (gusts 13), chance of rain 3%, 0.00 in. of rain, 58°F."
+    # the real Oregon pull had no rain AMOUNT: the page used to crash formatting None
+    assert plain.forecast_values_text({**full, "precip_amt": None}) == "wind up to 8 mph (gusts 13), chance of rain 3%, rain amount not given, 58°F."
+    assert plain.forecast_values_text({"wind_sust": None, "wind_gust": None, "precip_prob": None, "precip_amt": None,
+                                       "temp_f": float("nan")}) == "rain amount not given."
+
+
+def test_gameday_page_opens_a_game_whose_forecast_has_no_rain_amount():
+    import os
+    import sqlite3
+    gid = sqlite3.connect(os.environ["OSU_FORECAST_DB_PATH"]).execute(
+        "SELECT game_id FROM forecast_snapshots WHERE status='ok' AND precip_amt IS NULL LIMIT 1").fetchone()[0]
+    at = run_page("app/streamlit_app.py")
+    at.selectbox[0].set_value(gid).run()
+    assert not at.exception
+    assert any("rain amount not given" in c.value for c in at.caption)
