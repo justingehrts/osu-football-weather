@@ -2,10 +2,12 @@ name: Forecast snapshots
 
 # Independent of CFBD: asks the National Weather Service (Open-Meteo as a fallback) for the forecast at each
 # upcoming game's venue and stores a NEW timestamped row. Rows are never overwritten.
-# Every 6 hours, Tuesday through Saturday, in season (UTC).
+# Every 6 hours, EVERY day, in season (UTC). Sunday and Monday matter: the NWS hourly grid reaches about 6.5 days, so next
+# Saturday's game first comes into range on Sunday. (It used to skip Sunday and Monday, which left the app showing a stale
+# "beyond the forecast horizon" from the previous Saturday until Tuesday.)
 on:
   schedule:
-    - cron: "23 1,7,13,19 * 8-12,1 2-6"
+    - cron: "23 1,7,13,19 * 8-12,1 *"
   workflow_dispatch:
 
 permissions:
