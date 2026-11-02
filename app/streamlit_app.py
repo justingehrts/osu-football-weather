@@ -293,7 +293,7 @@ for r in sched.itertuples():
         elif f["status"] == "ok":
             weather = "forecast: " + ", ".join(logic.condition_badges(f["wind_bin"], f["precip_bin"], f["temp_bin"], f["precip_prob"]))
         elif f["status"] == "beyond_horizon":
-            weather = "beyond the forecast horizon"
+            weather = "forecast pull due (now in range)" if logic.came_into_range_since(f, bins) else "beyond the forecast horizon"
         else:
             weather = f["status"].replace("_", " ")
     rows.append({"Wk": int(r.week), "Date": timefmt.local_day(r.kickoff_utc, r.tz) if r.kickoff_utc else "TBD", "Opponent": r.opponent,

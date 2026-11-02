@@ -292,8 +292,28 @@ def playcall_metrics(bins):
     return list(bins.get("app", {}).get("playcalling_metrics") or [])
 
 
+def came_into_range_since(forecast, bins, now=None):
+    """True when the stored forecast says 'beyond the horizon' but only because it was pulled EARLY: when it was pulled the
+    game was further out than the forecast reaches, and now it is not. Then the honest message is 'a new pull is due',
+    not 'beyond the horizon' (which would be wrong today). A row made INSIDE the horizon that still couldn't cover the
+    game window (the forecast's far end) is not this case."""
+    f = forecast or {}
+    if f.get("status") != "beyond_horizon" or not f.get("kickoff_utc") or f.get("hours_ahead") is None:
+        return False
+    horizon = bins["forecast"]["horizon_hours"]
+    now = pd.Timestamp(now) if now is not None else pd.Timestamp.now(tz="UTC")
+    to_kickoff = (pd.to_datetime(f["kickoff_utc"], utc=True) - now).total_seconds() / 3600
+    return f["hours_ahead"] > horizon and 0 < to_kickoff <= horizon
+
+
+def pull_pending_message(forecast):
+    pulled = pd.to_datetime(forecast["snapshot_utc"], utc=True).tz_convert("America/New_York").strftime("%a %b %d, %-I:%M %p ET")
+    return (f"This game has come into forecast range since the last forecast pull ({pulled}, when it was "
+            f"{forecast['hours_ahead'] / 24:.1f} days out). The next scheduled pull will add the forecast.")
+
+
 def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side=False, scope="all",
-                       typicals=None, first_season=None):
+                       typicals=None, first_season=None, now=None):
     """Everything the Gameday Card shows, as plain data. The page renders it; the blurb, CSV and PNG
     are made from the very same object, so they can never disagree with what is on screen."""
     focal = teams["focal"]
@@ -323,7 +343,8 @@ def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side
                 "none": "No forecast has been pulled for this game yet.",
                 "no_kickoff_time": "The kickoff time isn't set yet, so there is no forecast.",
                 "error": "The forecast services didn't answer; no forecast is available right now."}
-        view["takeaway"] = msgs.get(status, "No forecast is available for this game.") + " Choose conditions under What-If to see how each team has done."
+        msg = pull_pending_message(forecast) if came_into_range_since(forecast, bins, now) else msgs.get(status, "No forecast is available for this game.")
+        view["takeaway"] = msg + " Choose conditions under What-If to see how each team has done."
         view["notes"].append((forecast or {}).get("note"))
         return view
     from . import plain                                   # (imported here: plain builds on this module)

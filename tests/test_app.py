@@ -1,5 +1,6 @@
 """The app's decisions (labels, takeaway, exports) and a smoke test of every page. Offline."""
 import io
+import os
 import sqlite3
 from datetime import datetime, timezone
 
@@ -230,10 +231,11 @@ def AppTest_game_ids():
 
 def test_gameday_card_game_beyond_horizon_says_so():
     at = run_page("app/streamlit_app.py")
-    game = at.selectbox[0]
-    opts = list(game.options)
-    oregon_game = [g for g in AppTest_game_ids() if g[1] == "Oregon"][0][0]       # the Nov 6 game: beyond the horizon in the fixture
-    game.set_value(oregon_game).run()
+    # Which upcoming game the fixture makes "beyond the horizon" depends on today's date (the fixture is built from the
+    # games still to be played), so ask the fixture itself rather than naming an opponent.
+    beyond = sqlite3.connect(os.environ["OSU_FORECAST_DB_PATH"]).execute(
+        "SELECT game_id FROM forecast_snapshots WHERE status = 'beyond_horizon' LIMIT 1").fetchone()[0]
+    at.selectbox[0].set_value(beyond).run()
     assert not at.exception
     assert "beyond the forecast horizon" in at.info[0].value
 

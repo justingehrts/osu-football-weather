@@ -75,10 +75,11 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
   (1 call), pull the ASOS windows, recompute `team_splits`/`team_tiers`, and commit. Quiet runs commit nothing
   (the call counter is re-read from CFBD's free `/info` at the start of every run, so it is never committed alone).
   Budget: about 4 calls a week when quiet, about 8 on a game week. It is the only scheduled CFBD user.
-- `.github/workflows/forecast.yml`: every 6 hours Tue-Sat in season; NWS hourly gridpoint (Open-Meteo only if NWS
+- `.github/workflows/forecast.yml`: every 6 hours, every day, in season (Sunday/Monday included: next Saturday's game first comes into range on Sunday); NWS hourly gridpoint (Open-Meteo only if NWS
   fails) for each upcoming game's venue, kickoff to +3.5 h, mapped to the same bins as the history. Each pull is a NEW
   row in `forecast_snapshots`; rows are never updated or deleted. A game beyond `forecast.horizon_hours` gets a
-  `beyond_horizon` row (we say so, we do not guess); dome games get no row ("indoor, weather not a factor").
+  `beyond_horizon` row (we say so, we do not guess); dome games get no row ("indoor, weather not a factor"). If the latest row is a
+  `beyond_horizon` made when the game was still too far out but the game is in range now, the app says a new pull is due (not "beyond the horizon").
 - `.github/workflows/ingest.yml` is manual-only (a full incremental run, e.g. after un-deferring a team).
 - Deferred teams (`deferred:` in config/opponents.yaml) stay on the schedule but are never loaded; the app shows
   "data not loaded yet" for them and nothing may fail because they are missing.
