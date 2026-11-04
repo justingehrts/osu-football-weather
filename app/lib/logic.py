@@ -366,6 +366,8 @@ def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side
                     rows.append(r)
             view["sections"].append({"dim": dim, "bin": bv, "title": VS_NOT.get(bv, bv), "rows": rows})
     view["scope"] = scope
+    if not cond["overridden"] and (forecast or {}).get("status") == "ok":
+        view["forecast_brief"] = plain.forecast_brief(forecast)       # the copy-as-text forecast line gets the numbers too
     view["takeaway"] = takeaway(stats, focal, opp, cond["wind"], cond["precip"], bins, cond.get("precip_prob"), scope)
     view["on_air"] = plain.on_air_line(stats, focal, opp, cond["wind"], cond["precip"], bins, typicals, first_season,
                                        cond.get("precip_prob"), scope=scope)
@@ -400,8 +402,11 @@ def csv_bytes(rows):
 def blurb(view):
     """Plain-text version of the card for pasting into a script, chat or email."""
     lines = [f"{view['title']}" + (f" - {view['venue']}" if view.get("venue") else "")]
-    if view["badges"]:
-        lines.append("Forecast: " + ", ".join(view["badges"]))
+    if view.get("forecast_brief"):
+        lines.append("Forecast: " + view["forecast_brief"])
+    elif view["badges"]:
+        lines.append(("Conditions (What-If): " if (view.get("conditions") or {}).get("overridden") else "Forecast: ")
+                     + ", ".join(view["badges"]))
     if view.get("on_air"):
         lines.append("On-air line: " + view["on_air"])
     lines += [view["takeaway"], ""]

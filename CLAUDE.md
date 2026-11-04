@@ -148,6 +148,8 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
     one light line. Playcalling per condition is a summary sentence with charts/numbers in an expander. Chart titles carry
     units; how to read the charts is explained once (popover). Borderline distances use the pipeline's rounding (whole mph,
     whole degrees, 0.01 in.). The takeaway, on-air line and board use the CARD's game count (the result's n), not the tier's.
+    The season table and the copy-as-text "Forecast:" line carry the same numbers (`plain.forecast_brief`); a What-If blurb
+    says "Conditions (What-If)" with names only. The page title shrinks on phones.
   - Forecast details: distance to each bin line (borderline margins in `forecast.borderline`; borderline wind/rain shows a
     warning near the badges), trend across pulls, and the hour-by-hour window (`hours` in the snapshot's `detail` JSON).
 

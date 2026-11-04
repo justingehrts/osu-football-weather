@@ -56,6 +56,7 @@ CSS = """
 .glance .t-clear {font-size:1.08rem; font-weight:700; color:#10233a;} .glance .t-leans {font-size:1rem; font-weight:600;}
 .glance .t-none, .glance .t-few {font-size:.95rem; color:#5b6470;} .glance .sub {font-size:.85rem; color:#3b4652;}
 @media (max-width: 640px) {
+  h1 {font-size:1.9rem !important;}   /* the page title shouldn't eat a phone's first screen */
   .onair {font-size:1.12rem;}
   .glance > div, .glance > a {padding:.6rem .5rem;} .glance .cond {font-size:1rem;}
   .glance .t-clear {font-size:.98rem;} .glance .t-leans, .glance .t-none, .glance .t-few {font-size:.92rem;}

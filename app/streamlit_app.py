@@ -305,7 +305,7 @@ for r in sched.itertuples():
         elif not f:
             weather = "no forecast yet"
         elif f["status"] == "ok":
-            weather = "forecast: " + ", ".join(logic.condition_badges(f["wind_bin"], f["precip_bin"], f["temp_bin"], f["precip_prob"]))
+            weather = "forecast: " + plain.forecast_brief(f)          # with the numbers, like the badges
         elif f["status"] == "beyond_horizon":
             weather = "forecast pull due (now in range)" if logic.came_into_range_since(f, bins) else "beyond the forecast horizon"
         else:
