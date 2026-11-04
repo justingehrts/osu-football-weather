@@ -120,8 +120,8 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
   - Numbers are said in words with direction ("1.72 fewer yards per pass"); stats where lower is good add "(better)/(worse)".
     The exact adjusted number stays beside it, small.
   - Game-sized translations ("about 55 fewer passing yards a game (-18%) · usually 9.3 yards per pass in other games") combine the
-    adjusted change with the team's PLAIN average in its other games, so they always say "about". Never for Not enough games or
-    the pooled line.
+    adjusted change with the team's PLAIN average in its other games, so they always say "about". Never for Not enough games, No
+    clear effect rows on the card, or the pooled line.
   - Each condition gets a dot-and-range chart: right is always better (lower-is-better stats are flipped), dashed zero line =
     no difference, colored by evidence label, pooled line included. Interval NUMBERS never appear in the chart or its tooltips.
   - The on-air line (wind first, never temperature) maps labels to hedges: Clear signal "has clearly", Leans "has tended to ...
@@ -139,6 +139,15 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
     (`pipeline/venue_tz.py`, `timezonefinder`, no web calls); a venue with no zone falls back to ET. Dates (game picker, season
     table, evidence lists) are the stadium's local date. Times a forecast was PULLED stay in ET. Helpers: `app/lib/timefmt.py`.
   - The hour-by-hour forecast is two charts, wind/gusts on top and chance of rain below, so a high chance of rain can't hide the wind.
+  - Gameday Card order and salience (upcoming games): condition badges carry the forecast numbers ("Calm · 9 mph · gusts 14",
+    temperature muted "context only") with a borderline tag; a one-line specific borderline note; then the **At a glance**
+    board (conditions down, focal team left / opponent right, each cell = label + a few words + n, linking to its section;
+    one playcalling line under it); then ONE summary: the on-air line in large type with the written takeaway small under it.
+    Evidence sets loudness: Clear signal biggest on a tinted panel, Leans normal, No clear effect muted. A team block whose
+    numbers are ALL No clear effect folds to one line with a session-only "Show the numbers" switch. The pooled reference is
+    one light line. Playcalling per condition is a summary sentence with charts/numbers in an expander. Chart titles carry
+    units; how to read the charts is explained once (popover). Borderline distances use the pipeline's rounding (whole mph,
+    whole degrees, 0.01 in.). The takeaway, on-air line and board use the CARD's game count (the result's n), not the tier's.
   - Forecast details: distance to each bin line (borderline margins in `forecast.borderline`; borderline wind/rain shows a
     warning near the badges), trend across pulls, and the hour-by-hour window (`hours` in the snapshot's `detail` JSON).
 

@@ -109,49 +109,62 @@ elif status == "indoor":
     st.info("**Indoor, weather not a factor.**")
 else:
     if view["badges"]:
-        st.markdown(ui.badges(view["badges"]), unsafe_allow_html=True)
         c = view["conditions"]
+        # the badges carry the forecast numbers, and a borderline forecast gets a tag right on its badge
+        ui.condition_badges(plain.badge_parts(c, forecast, bins))
         if c["overridden"]:
             st.caption("🔧 What-If: these are your chosen conditions, not the forecast.")
         elif forecast and forecast.get("status") == "ok":
-            st.caption(f"{forecast['source'].upper()} forecast pulled {tz_local(forecast['snapshot_utc'])}, for kickoff to +3.5 h: "
-                       f"{plain.forecast_values_text(forecast)}")
             _, near = plain.bin_distances(forecast, bins)
             if near:
-                st.warning("**Borderline forecast:** " + "; ".join(near) + ". A small change in the forecast could change "
-                           "which history applies; see *Forecast details* below.", icon="⚠️")
+                st.markdown('<div class="borderline"><b>Borderline:</b> ' + "; ".join(near) + ". A small change in the forecast "
+                            "could move this game into a different history (see <i>Forecast details</i> below).</div>",
+                            unsafe_allow_html=True)
+            st.caption(f"{forecast['source'].upper()} forecast pulled {tz_local(forecast['snapshot_utc'])}, for kickoff to +3.5 h: "
+                       f"{plain.forecast_values_text(forecast)}")
     else:
         st.warning(view["takeaway"].split(" Choose conditions")[0])
-    st.info(view["takeaway"])
-    if view.get("on_air") and view["sections"]:
-        ui.on_air_box(view["on_air"])
     if view["sections"]:
-        st.caption("All numbers below compare a team's games in these conditions with its **other** games (for example, windy vs. not windy), "
-                   "with opponent strength, time of season and home/away held fixed. Exploratory: not a prediction.")
+        # the 5-second read first, then ONE summary (the on-air line, with the written takeaway small under it)
+        ui.glance_board(plain.glance(view, stats, scope), view, plain.playcall_glance(view))
+        ui.on_air_box(view.get("on_air") or "", view["takeaway"])
+        c1, c2 = st.columns([4, 1.3], vertical_alignment="center")
+        c1.caption("All numbers below compare a team's games in these conditions with its **other** games (for example, windy vs. "
+                   "not windy), with opponent strength, time of season and home/away held fixed. Exploratory: not a prediction.")
+        with c2:
+            ui.how_to_read()
+    else:
+        st.info(view["takeaway"])
 
 
 def playcall_block(sec, prefix):
-    """How each team CALLS plays in this condition (pass share, pace). Not better or worse, so its own neutral block."""
+    """How each team CALLS plays in this condition (pass share, pace). Not better or worse, so it is a one-line summary with
+    the charts and numbers one click away."""
     if not play_m or not any(r.metric in play_m for r in sec["rows"]):
         return
     st.markdown("##### Playcalling: how they play, not how well")
-    ui.condition_chart(sec["rows"], view, play_m, neutral=True)
-    cols = st.columns(2)
-    for col, team in zip(cols, (view["focal"], view["opponent"])):
-        with col:
-            ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in play_m], team, prefix)
-    ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in play_m], pn)
+    st.markdown(f'<div style="font-size:.95rem;margin-bottom:.3rem">{plain.playcall_summary(sec, view["focal"], view["opponent"])}</div>',
+                unsafe_allow_html=True)
+    with st.expander("Show playcalling: charts and numbers"):
+        ui.condition_chart(sec["rows"], view, play_m, neutral=True)
+        cols = st.columns(2)
+        for col, team in zip(cols, (view["focal"], view["opponent"])):
+            with col:
+                ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in play_m], team, prefix,
+                              plain.GAMES_WORD.get(sec["bin"]))
+        ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in play_m], pn)
 
 
 # ---- the comparison: wind first, then rain ----------------------------------------------------
 pn = view["pooled_n"]
 for sec in [s for s in view["sections"] if s["dim"] == "wind"]:
+    ui.anchor(f"sec-wind-{sec['bin']}")
     st.markdown(f"### Wind: {sec['title']}")
     ui.condition_chart(sec["rows"], view, head_m)
     cols = st.columns(2)
     for col, team in zip(cols, (view["focal"], view["opponent"])):
         with col:
-            ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, "w")
+            ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, "w", plain.GAMES_WORD.get(sec["bin"]))
     ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in head_m], pn)
     playcall_block(sec, "wpc")
 
@@ -163,12 +176,14 @@ if psecs:
     # Same orientation as the wind section: the two teams are always left (focal) and right (opponent). When there is
     # more than one rain scenario, the scenarios are stacked top to bottom, each with its own left-right comparison.
     for sec in psecs:
+        ui.anchor(f"sec-precip-{sec['bin']}")
         st.markdown(f"#### {logic.PRECIP_NAME.get(sec['bin'], sec['bin'])} ({sec['title']})")
         ui.condition_chart(sec["rows"], view, head_m)
         cols = st.columns(2)
         for col, team in zip(cols, (view["focal"], view["opponent"])):
             with col:
-                ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, f"p{sec['bin']}")
+                ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, f"p{sec['bin']}",
+                              plain.GAMES_WORD.get(sec["bin"]))
         ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in head_m], pn)
         playcall_block(sec, f"p{sec['bin']}pc")
     if any(s["bin"] == "steady" for s in psecs):
@@ -304,7 +319,7 @@ if view["sections"] or status in ("played", "indoor"):
     st.markdown("### Share this view")
     text = logic.blurb(view)
     st.caption("Copy-as-text (use the copy icon at the top right of the box):")
-    st.code(text, language=None)
+    st.code(text, language=None, wrap_lines=True)      # long lines wrap instead of running off the edge
     c1, c2 = st.columns(2)
     c1.download_button("Download CSV", logic.csv_bytes(logic.view_rows(view)), file_name=f"gameday_{gid}.csv", mime="text/csv",
                        disabled=not view["sections"])

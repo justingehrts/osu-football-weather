@@ -153,7 +153,7 @@ def test_gameday_page_shows_the_on_air_line_chart_forecast_details_and_hides_ppa
     labels = [e.label for e in at.expander]
     assert "Under the hood: offensive PPA (for the stats crowd)" in labels
     assert "Forecast details: bin lines, trend and hour by hour" in labels
-    assert any("Borderline forecast" in w.value for w in at.warning)          # fixture: 0.08 in. vs the 0.10 line
+    assert any('class="borderline"' in m.value and "steady-rain line" in m.value for m in at.markdown)   # fixture: 0.08 in. vs 0.10
     for col in at.columns:
         assert not any("PPA" in m.value or "expected points per play" in m.value for m in col.markdown), \
             "PPA belongs under the hood, not on the card"

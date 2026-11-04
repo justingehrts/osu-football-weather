@@ -15,7 +15,7 @@ import math
 
 import pandas as pd
 
-from .logic import CLEAR, FEW, LEANS, METRIC_INFO, NONE, POOLED, RANK
+from .logic import CLEAR, FEW, LEANS, METRIC_INFO, NONE, POOLED, PRECIP_NAME, RANK, WIND_NAME
 
 # +1: higher is better for that team; -1: lower is better
 # 0 = playcalling: neither better nor worse, so there is no good direction (and the chart is not flipped)
@@ -29,6 +29,9 @@ SAY = {"pass_eff": ("more", "fewer", "yards per pass"), "points": ("more", "fewe
 SHORT = {"pass_eff": "yds/pass", "points": "pts", "points_allowed": "pts allowed", "ppa_off": "PPA/play",
          "rush_ypc": "yds/carry", "turnovers": "turnovers", "pass_rate": "passing", "plays": "plays"}
 # x-axis wording for the neutral (playcalling) charts; everything else uses the "worse / better" axis
+UNIT_WORDS = {"pass_eff": "yards per pass", "points": "points a game", "points_allowed": "points a game",
+              "ppa_off": "expected points per play", "rush_ypc": "yards per carry", "turnovers": "turnovers a game",
+              "pass_rate": "passes per 100 plays", "plays": "plays a game"}
 NEUTRAL_AXIS = {"pass_rate": "◄ ran more  ·  threw more ►", "plays": "◄ fewer plays  ·  more plays ►"}
 GAMES_WORD = {"calm": "calm", "moderate": "moderate-wind", "windy": "windy", "none": "dry", "light": "light-rain",
               "steady": "steady-rain", "wet": "rainy"}
@@ -142,6 +145,7 @@ def chart_frame(rows, focal, opponent, pooled_n, metrics):
         lo, hi = sorted((r.lo * g, r.hi * g))
         text, verdict = words(r, short=True)
         drawn.append({"metric": METRIC_INFO[r.metric][0], "metric_order": metrics.index(r.metric),
+                      "title": f"{METRIC_INFO[r.metric][0]} · {UNIT_WORDS[r.metric]}",
                       "who": who_name[r.team], "who_order": order[r.team], "better": r.value * g, "lo": lo, "hi": hi,
                       "label": r.label, "n": r.n, "in_words": text + (f" ({verdict})" if verdict else ""), "zero": 0.0,
                       "axis": NEUTRAL_AXIS.get(r.metric, "◄ worse  ·  better ►")})
@@ -155,7 +159,7 @@ def _reason(label, n, bins):
     return f"but that's only {n} games" if n < bins["app"]["clear_signal_min_n"] else "but it's not a consistent pattern"
 
 
-def _playcall_sentence(stats, focal, opp, wind, precip, bins):
+def _playcall_sentence(stats, focal, opp, wind, precip, bins, scope="all"):
     """At most ONE playcalling sentence, only for a Leans finding (pass share has no second stat, so it can never be
     'Clear signal'). Wind before rain, focal team first. Not better or worse, so no value words: 'throw more/less'."""
     for dim, bv in (("wind", wind), ("precip", precip)):
@@ -164,7 +168,7 @@ def _playcall_sentence(stats, focal, opp, wind, precip, bins):
         for team in (focal, opp):
             if not team or not stats.loaded(team):
                 continue
-            r = stats.result(team, dim, bv, "pass_rate")
+            r = stats.result(team, dim, bv, "pass_rate", scope)
             if r.label == LEANS and _shows(r) and abs(r.value) >= 0.5:
                 up = r.value > 0
                 return (f"{team} has tended to throw {'more' if up else 'less'} in {GAMES_WORD[bv]} games: about {abs(r.value):.0f} "
@@ -172,7 +176,7 @@ def _playcall_sentence(stats, focal, opp, wind, precip, bins):
     return None
 
 
-def on_air_line(stats, focal, opp, wind, precip, bins, typicals, first_season, precip_prob=None, max_items=2):
+def on_air_line(stats, focal, opp, wind, precip, bins, typicals, first_season, precip_prob=None, max_items=2, scope="all"):
     """One or two sentences you could read on air. Rounded numbers, the evidence label turned into everyday hedges
     ('has clearly' only for Clear signal, 'has tended to ... but' for Leans), wind before rain, never temperature.
     A toss-up rain chance always gets its own short sentence, so findings leave room for it."""
@@ -186,10 +190,10 @@ def on_air_line(stats, focal, opp, wind, precip, bins, typicals, first_season, p
                 continue
             found = {}
             for grp, metric in (("passing", "pass_eff"), ("scoring", "points")):
-                label, n, _ = stats.group_label(team, dim, bv, grp)
-                r = stats.result(team, dim, bv, metric)
+                label = stats.group_label(team, dim, bv, grp, scope)[0]
+                r = stats.result(team, dim, bv, metric, scope)
                 if label in (CLEAR, LEANS) and _shows(r):
-                    found[grp] = (label, n, r)
+                    found[grp] = (label, r.n, r)          # the card's own count, so the line and the card agree
             if found:
                 best = max(RANK[v[0]] for v in found.values())
                 cands.append((0 if dim == "wind" else 1, -best, 0 if team == focal else 1, team, dim, bv, found))
@@ -226,7 +230,7 @@ def on_air_line(stats, focal, opp, wind, precip, bins, typicals, first_season, p
                 else:
                     out.append(f"{team} has tended to score {'a bit more' if up else 'a bit less'} in {cond}, {_reason(label, n, bins)}.")
     out = out[:max_items - 1] if uncertain else out[:max_items]
-    pc = _playcall_sentence(stats, focal, opp, wind, None if uncertain else precip, bins)
+    pc = _playcall_sentence(stats, focal, opp, wind, None if uncertain else precip, bins, scope)
     if pc:
         out.append(pc)
     if uncertain:
@@ -258,64 +262,201 @@ def forecast_values_text(fc):
     return ", ".join(bits) + "."
 
 
-def bin_distances(fc, bins):
-    """How close is each forecast number to the line where the card would change? -> (rows, borderline_notes)."""
+def _num(fc, key):
+    v = (fc or {}).get(key)
+    return None if v is None or pd.isna(v) else v
+
+
+def _distance_items(fc, bins):
+    """Each forecast number vs. the nearest line that would change the card. Values are rounded EXACTLY as the pipeline
+    rounds them before binning (whole mph, whole degrees, rain to 0.01 in.), so a 9.2 mph forecast is "9 mph, the top of
+    calm" here too, never "between calm and windy" next to a Calm badge."""
     if not fc or fc.get("status") != "ok":
-        return [], []
+        return []
     w, b = bins["wind"], bins["forecast"]["borderline"]
-    rows, notes = [], []
-
-    def add(what, value, unit, text, distance, margin, flip):
-        near = distance is not None and abs(distance) <= margin
-        shown = f"{value:.2f} {unit}" if unit == "in." else (f"{value:.0f}{unit}" if unit in ("%", "°F") else f"{value:.0f} {unit}")
-        rows.append({"Forecast": what, "Value": shown,
-                     "Where it sits": text, "Borderline": "yes" if near else ""})
-        if near and flip:
-            notes.append(flip)
-
-    s, g = fc.get("wind_sust"), fc.get("wind_gust")
     calm_s, windy_s = w["calm"]["sustained_max"], w["windy"]["sustained_min"]
     calm_g, windy_g = w["calm"]["gust_max"], w["windy"]["or_gust_min"]
+    out = []
+
+    def add(dim, what, shown, where, distance, margin, tag=None, note=None):
+        near = distance is not None and abs(distance) <= margin
+        out.append({"dim": dim, "what": what, "shown": shown, "where": where, "near": near,
+                    "tag": tag if near else None, "note": note if near else None})
+
+    s = _num(fc, "wind_sust")
     if s is not None:
+        s = round(s)
         if s >= windy_s:
-            add("Sustained wind", s, "mph", f"windy starts at {windy_s} mph ({s - windy_s:.0f} over)", s - windy_s, b["wind_mph"],
-                "sustained wind is just over the windy line")
+            add("wind", "Sustained wind", f"{s} mph", f"windy starts at {windy_s} mph ({s - windy_s} over)", s - windy_s, b["wind_mph"],
+                "just windy", f"{s} mph sustained is just over the windy line ({windy_s} mph)")
         elif s <= calm_s:
-            add("Sustained wind", s, "mph", f"calm is up to {calm_s} mph ({calm_s - s:.0f} under)", calm_s - s, b["wind_mph"],
-                "sustained wind is just inside calm")
+            d = calm_s - s
+            add("wind", "Sustained wind", f"{s} mph", f"calm is up to {calm_s} mph ({d} under)", d, b["wind_mph"], "top of calm",
+                f"{s} mph sustained is the top of the calm range (calm runs up to {calm_s} mph; {calm_s + 1} to {windy_s - 1} is moderate)"
+                if d == 0 else f"{s} mph sustained is {d} mph under the moderate-wind line (calm runs up to {calm_s} mph)")
+        elif windy_s - s <= s - calm_s:
+            d = windy_s - s
+            add("wind", "Sustained wind", f"{s} mph", f"moderate; windy starts at {windy_s} mph ({d} under)", d, b["wind_mph"],
+                "near windy", f"{s} mph sustained is moderate, {d} mph below the windy line ({windy_s} mph)")
         else:
-            d = min(windy_s - s, s - calm_s)
-            add("Sustained wind", s, "mph", f"between calm (up to {calm_s}) and windy (from {windy_s})", d, b["wind_mph"],
-                "sustained wind is near a wind line")
+            d = s - calm_s
+            add("wind", "Sustained wind", f"{s} mph", f"moderate; calm is up to {calm_s} mph ({d} over)", d, b["wind_mph"],
+                "near calm", f"{s} mph sustained is moderate, {d} mph above calm (calm runs up to {calm_s} mph)")
+    g = _num(fc, "wind_gust")
     if g is not None:
+        g = round(g)
         if g >= windy_g:
-            add("Gusts", g, "mph", f"windy starts at {windy_g} mph gusts ({g - windy_g:.0f} over)", g - windy_g, b["gust_mph"],
-                "gusts are just over the windy line")
+            add("wind", "Gusts", f"{g} mph", f"windy starts at {windy_g} mph gusts ({g - windy_g} over)", g - windy_g, b["gust_mph"],
+                "gusts just windy", f"gusts of {g} mph are just over the windy line ({windy_g} mph)")
         elif g <= calm_g:
-            add("Gusts", g, "mph", f"calm allows gusts up to {calm_g} mph ({calm_g - g:.0f} under)", calm_g - g, b["gust_mph"],
-                "gusts are near the top of calm")
+            add("wind", "Gusts", f"{g} mph", f"calm allows gusts up to {calm_g} mph ({calm_g - g} under)", calm_g - g, b["gust_mph"],
+                "gusts near calm limit", f"gusts of {g} mph are near the top of calm (calm allows gusts up to {calm_g} mph)")
+        elif windy_g - g <= g - calm_g:
+            d = windy_g - g
+            add("wind", "Gusts", f"{g} mph", f"moderate; windy starts at {windy_g} mph gusts ({d} under)", d, b["gust_mph"],
+                "gusts near windy", f"gusts of {g} mph are {d} mph below the windy line ({windy_g} mph)")
         else:
-            d = min(windy_g - g, g - calm_g)
-            add("Gusts", g, "mph", f"between calm (up to {calm_g}) and windy (from {windy_g})", d, b["gust_mph"],
-                "gusts are near a wind line")
-    pop, amt = fc.get("precip_prob"), fc.get("precip_amt")
+            d = g - calm_g
+            add("wind", "Gusts", f"{g} mph", f"moderate; calm allows gusts up to {calm_g} mph ({d} over)", d, b["gust_mph"],
+                "gusts near calm", f"gusts of {g} mph are {d} mph above calm's limit ({calm_g} mph)")
     lo, hi = bins["forecast"]["precip_prob_middle"]
+    pop = _num(fc, "precip_prob")
     if pop is not None:
+        pop = round(pop)
         band = "toss-up band" if lo <= pop < hi else ("dry side" if pop < lo else "wet side")
-        d = min(abs(pop - lo), abs(pop - hi))
-        add("Chance of rain", pop, "%", f"{band} (toss-up is {lo}-{hi}%)", d, b["rain_chance_pct"],
-            f"rain chance is near the edge of the {lo}-{hi}% toss-up band")
+        add("precip", "Chance of rain", f"{pop}%", f"{band} (toss-up is {lo}-{hi}%)", min(abs(pop - lo), abs(pop - hi)),
+            b["rain_chance_pct"], "toss-up edge", f"{pop}% chance of rain is near the edge of the {lo}-{hi}% toss-up band")
+    amt = _num(fc, "precip_amt")
     if amt is not None:
+        amt = round(amt, 2)
         steady = bins["precip"]["steady"]["total_in_min"]
-        add("Rain amount", amt, "in.", f"steady rain starts at {steady:.2f} in.", steady - amt, b["rain_in"],
-            "rain amount is close to the steady-rain line")
-    t = fc.get("temp_f")
+        add("precip", "Rain amount", f"{amt:.2f} in.", f"steady rain starts at {steady:.2f} in.", round(steady - amt, 2), b["rain_in"],
+            "near steady rain", f"{amt:.2f} in. of rain is close to the steady-rain line ({steady:.2f} in.)")
+    t = _num(fc, "temp_f")
     if t is not None:
+        t = round(t)
         edges = [v for r in bins["temperature"].values() for v in (r.get("min"), r.get("max")) if v is not None]
-        d = min(abs(t - e) for e in edges)
-        add("Temperature (context only)", t, "°F", "nearest temperature line is " + f"{min(edges, key=lambda e: abs(t - e))}°F", d,
-            b["temp_f"], None)
-    return rows, notes
+        add("temp", "Temperature (context only)", f"{t}°F", f"nearest temperature line is {min(edges, key=lambda e: abs(t - e))}°F",
+            min(abs(t - e) for e in edges), b["temp_f"])          # context only: never a borderline note or tag
+    return out
+
+
+def bin_distances(fc, bins):
+    """How close is each forecast number to the line where the card would change? -> (rows, borderline_notes)."""
+    items = _distance_items(fc, bins)
+    rows = [{"Forecast": i["what"], "Value": i["shown"], "Where it sits": i["where"], "Borderline": "yes" if i["near"] else ""}
+            for i in items]
+    return rows, [i["note"] for i in items if i["note"]]
+
+
+def badge_parts(cond, fc, bins):
+    """The condition badges, now carrying the forecast numbers: [{name, detail, tag, muted}]. A What-If shows names
+    only (no forecast numbers behind it). Temperature is a muted 'context only' badge."""
+    use_fc = bool(fc) and fc.get("status") == "ok" and not cond.get("overridden")
+    tags = {}
+    for i in (_distance_items(fc, bins) if use_fc else []):
+        if i["tag"] and i["dim"] not in tags:
+            tags[i["dim"]] = i["tag"]
+    out = []
+    if cond.get("wind"):
+        s, g = _num(fc, "wind_sust"), _num(fc, "wind_gust")
+        detail = (f"{round(s)} mph" + (f" · gusts {round(g)}" if g is not None else "")) if use_fc and s is not None else None
+        out.append({"name": WIND_NAME.get(cond["wind"], cond["wind"]), "detail": detail, "tag": tags.get("wind"), "muted": False})
+    if cond.get("precip"):
+        pop = _num(fc, "precip_prob")
+        name = "Rain possible" if cond["precip"] == "uncertain" else PRECIP_NAME.get(cond["precip"], cond["precip"])
+        detail = f"{round(pop)}% chance of rain" if use_fc and pop is not None else None
+        out.append({"name": name, "detail": detail, "tag": tags.get("precip"), "muted": False})
+    if cond.get("temp"):
+        t = _num(fc, "temp_f")
+        out.append({"name": cond["temp"].replace("_", "/").title(), "detail": (f"{round(t)}°F" if use_fc and t is not None else None),
+                    "tag": None, "muted": True})
+    return out
+
+
+# --------------------------------------------------------------------------- the "at a glance" scoreboard
+GLANCE_VERB = {CLEAR: {("passing", True): "passes better", ("passing", False): "passes worse",
+                       ("scoring", True): "scores more", ("scoring", False): "scores less"},
+               LEANS: {("passing", True): "tends to pass a bit better", ("passing", False): "tends to pass a bit worse",
+                       ("scoring", True): "tends to score a bit more", ("scoring", False): "tends to score a bit less"}}
+
+
+def _phrase(groups, label, found):
+    ups = [found[g][1] for g in groups]
+    if len(groups) == 2 and ups[0] == ups[1]:
+        word = "better" if ups[0] else "worse"
+        return f"passes and scores {word}" if label == CLEAR else f"tends to pass and score a bit {word}"
+    return " but ".join(GLANCE_VERB[label][(g, found[g][1])] for g in groups)
+
+
+def glance_cell(sec, team, stats, scope="all"):
+    """One team x one condition: the strongest passing/scoring finding in a few words, its label and n."""
+    rs = {r.metric: r for r in sec["rows"] if r.team == team}
+    p, s = rs.get("pass_eff"), rs.get("points")
+    if p is None or p.status != "ok":
+        return {"label": FEW, "text": "data not loaded yet" if (p is None or p.status == "not_loaded") else "no games",
+                "sub": "", "n": None}
+    found, labels = {}, []
+    for grp, r in (("passing", p), ("scoring", s)):
+        label = stats.group_label(team, sec["dim"], sec["bin"], grp, scope)[0]
+        labels.append(label)
+        if label in (CLEAR, LEANS) and _shows(r) and r.value:
+            found[grp] = (label, r.value > 0, r)
+    if not found:
+        if NONE in labels:
+            return {"label": NONE, "text": "No clear change in passing or scoring", "sub": "", "n": p.n}
+        return {"label": FEW, "text": "Not enough games to say", "sub": "", "n": p.n}
+    best = max(found.values(), key=lambda v: RANK[v[0]])[0]
+    top = [g for g in ("passing", "scoring") if g in found and found[g][0] == best]
+    rest = [g for g in ("passing", "scoring") if g in found and g not in top]
+    text = _phrase(top, best, found)
+    if best == CLEAR and top == ["passing"] and p.extra.get("game_terms"):
+        text += ": " + p.extra["game_terms"].split(" (")[0]            # "about 30 more passing yards a game"
+    sub = f"Also {_phrase(rest, found[rest[0]][0], found)} ({found[rest[0]][0]})" if rest else ""
+    return {"label": best, "text": text[0].upper() + text[1:], "sub": sub, "n": p.n}
+
+
+def glance(view, stats, scope="all"):
+    """Rows for the scoreboard at the top of the card: one per condition shown, focal team then opponent."""
+    out = []
+    for sec in view.get("sections", []):
+        name = (WIND_NAME if sec["dim"] == "wind" else PRECIP_NAME).get(sec["bin"], sec["bin"])
+        out.append({"kind": "Wind" if sec["dim"] == "wind" else "Rain", "cond": name, "anchor": f"sec-{sec['dim']}-{sec['bin']}",
+                    "cells": [glance_cell(sec, t, stats, scope) for t in (view["focal"], view["opponent"])]})
+    return out
+
+
+def playcall_summary(sec, focal, opp):
+    """One or two sentences for a condition's playcalling block: only Leans findings (it can't be stronger), plain words."""
+    out = []
+    for team in (focal, opp):
+        rs = {r.metric: r for r in sec["rows"] if r.team == team}
+        r = rs.get("pass_rate")
+        if r is not None and r.label == LEANS and _shows(r) and abs(r.value) >= 0.5:
+            up = r.value > 0
+            out.append(f"{team} has tended to throw {'more' if up else 'less'}: about {abs(r.value):.0f} {'more' if up else 'fewer'} "
+                       f"passes per 100 plays (Leans, {r.n} games).")
+        r = rs.get("plays")
+        if r is not None and r.label == LEANS and _shows(r) and round(abs(r.value)) >= 1:
+            k = round(abs(r.value))
+            out.append(f"{team} has tended to run about {k} {'more' if r.value > 0 else 'fewer'} {'play' if k == 1 else 'plays'} "
+                       f"a game (Leans, {r.n} games).")
+    return " ".join(out) or f"No clear playcalling change for either team in {GAMES_WORD.get(sec['bin'], sec['bin'])} games."
+
+
+def playcall_glance(view):
+    """The one line under the scoreboard: who tends to throw more or less, and where. None when there is nothing."""
+    groups = {}
+    for sec in view.get("sections", []):
+        for team in (view["focal"], view["opponent"]):
+            r = next((x for x in sec["rows"] if x.team == team and x.metric == "pass_rate"), None)
+            if r is not None and r.label == LEANS and _shows(r) and abs(r.value) >= 0.5:
+                groups.setdefault((GAMES_WORD.get(sec["bin"], sec["bin"]), r.value > 0), []).append(team)
+    if not groups:
+        return None
+    bits = [f"{' and '.join(teams)} {'tends' if len(teams) == 1 else 'tend'} to throw {'more' if up else 'less'} in {cond} games"
+            for (cond, up), teams in groups.items()]
+    return "Playcalling (not better or worse): " + "; ".join(bits) + ". All Leans."
 
 
 def forecast_trend(history):
