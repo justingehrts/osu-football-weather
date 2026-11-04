@@ -199,6 +199,14 @@ def test_the_app_cannot_write_to_the_database():
 
 
 # --------------------------------------------------------------------------- pages, end to end (real database)
+def takeaway_of(at):
+    """The written takeaway: small text under the on-air line when the card has results, else the info box."""
+    for m in at.markdown:
+        if 'class="takeaway"' in m.value:
+            return m.value
+    return at.info[0].value
+
+
 def run_page(path):
     from pathlib import Path
     return AppTest.from_file(str(Path(__file__).resolve().parents[1] / path), default_timeout=90).run()
@@ -209,7 +217,7 @@ def test_gameday_card_opens_on_the_next_ohio_state_game_with_forecast_badges():
     assert not at.exception
     assert at.title[0].value == "Gameday Card"
     assert any("Windy" in m.value and "badge" in m.value for m in at.markdown)           # forecast prefilled as badges
-    assert any("Reference: all" in m.value for m in at.markdown)                         # pooled line, labelled
+    assert any("loaded teams (reference" in m.value for m in at.markdown)                # pooled line, labelled
     text = " ".join(m.value for m in at.markdown)
     assert "vs. all other games" in text or "other** games" in text
     assert "Temperature (context only): results differ by team" in [e.label for e in at.expander]
@@ -217,10 +225,10 @@ def test_gameday_card_opens_on_the_next_ohio_state_game_with_forecast_badges():
 
 def test_gameday_card_what_if_changes_the_takeaway():
     at = run_page("app/streamlit_app.py")
-    before = at.info[0].value
+    before = takeaway_of(at)
     sel = [s for s in at.selectbox if s.label == "Wind"][0]
     sel.set_value("Calm").run()
-    assert not at.exception and at.info[0].value != before and "calm" in at.info[0].value.lower()
+    assert not at.exception and takeaway_of(at) != before and "calm" in takeaway_of(at).lower()
 
 
 def AppTest_game_ids():
@@ -276,7 +284,7 @@ def test_shared_links_prefill_the_view():
     assert not at.exception
     assert [s for s in at.selectbox if s.label == "Wind"][0].value == "Windy"
     assert [s for s in at.selectbox if s.label == "Precipitation"][0].value == "Steady rain"
-    assert "windy games" in at.info[0].value
+    assert "windy games" in takeaway_of(at)
     ex = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app/pages/1_Team_Explorer.py"), default_timeout=90)
     ex.query_params["team"] = "Nebraska"
     ex.run()
@@ -367,13 +375,13 @@ def test_show_anyway_starts_off_reveals_plain_averages_and_never_touches_the_tak
     assert all(t.value is False for t in toggles)                                   # everyone starts off
     page = " ".join(m.value for m in at.markdown)
     assert "anecdote, not a finding" not in page
-    takeaway_before = at.info[0].value
+    takeaway_before = takeaway_of(at)
     toggles[0].set_value(True).run()
     assert not at.exception
     page = " ".join(m.value for m in at.markdown)
     assert "anecdote, not a finding" in page and "plain average, no adjustments" in page
     assert "Not enough games" in page                                               # the label is never upgraded
-    assert at.info[0].value == takeaway_before                                      # the takeaway never uses revealed numbers
+    assert takeaway_of(at) == takeaway_before                                      # the takeaway never uses revealed numbers
     assert "anyway" not in " ".join(at.query_params.keys())                         # session-only: a shared link can't carry it
     fresh = _page_with_a_thin_block()
     assert all(t.value is False for t in fresh.toggle if t.label == "Show anyway")  # a new visitor starts off again
@@ -395,6 +403,7 @@ def test_teams_are_always_compared_left_to_right_even_with_two_rain_scenarios():
         assert len(chips) <= 1, f"a column holds {len(chips)} teams: teams are stacked, not side by side"
         seen += len(chips)
     assert seen >= 6                                           # wind (2) + dry (2) + wet (2): every block sits in its own column
-    chips = [m.value for m in at.markdown if "team-chip" in m.value and "matchup" not in m.value]
+    # (the header and the at-a-glance board name both teams in one element; they are left to right by construction)
+    chips = [m.value for m in at.markdown if "team-chip" in m.value and "matchup" not in m.value and "glance" not in m.value]
     focal_first = [("Ohio State" in v) for v in chips]
     assert focal_first[:6] == [True, False, True, False, True, False]    # per scenario: focal team left, opponent right

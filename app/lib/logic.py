@@ -213,7 +213,7 @@ GAMES_WORD = {"calm": "calm", "moderate": "moderate-wind", "windy": "windy", "no
 VERB = {CLEAR: "shows a clear signal of", LEANS: "leans toward"}
 
 
-def takeaway(stats, focal, opp, wind, precip, bins, precip_prob=None):
+def takeaway(stats, focal, opp, wind, precip, bins, precip_prob=None, scope="all"):
     """ONE sentence from WIND and PRECIPITATION results only (never temperature).
 
     * Each finding names its OWN condition ("in windy games"): the wind result is "windy vs. not windy"
@@ -232,13 +232,13 @@ def takeaway(stats, focal, opp, wind, precip, bins, precip_prob=None):
                 if team is None or not stats.loaded(team):
                     continue
                 for grp in ("passing", "scoring"):
-                    label, n, _ = stats.group_label(team, dim, bv, grp)
+                    label = stats.group_label(team, dim, bv, grp, scope)[0]
                     if label not in (CLEAR, LEANS):
                         continue
-                    r = stats.result(team, dim, bv, PRIMARY[grp])
+                    r = stats.result(team, dim, bv, PRIMARY[grp], scope)
                     if r.value is None or not r.value:
                         continue
-                    grouped.setdefault((dim, bv, team), []).append((label, _direction("", r.value), NOUN[grp], n))
+                    grouped.setdefault((dim, bv, team), []).append((label, _direction("", r.value), NOUN[grp], r.n))   # the card's own count
     ordered = sorted(grouped.items(), key=lambda kv: (0 if kv[0][0] == "wind" else 1,
                                                       -max(RANK[c[0]] for c in kv[1]), 0 if kv[0][2] == focal else 1))
     parts = []
@@ -365,9 +365,10 @@ def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side
                                    game_terms_short=plain.game_terms_short(r, typical), words_short=plain.words(r, short=True)[0])
                     rows.append(r)
             view["sections"].append({"dim": dim, "bin": bv, "title": VS_NOT.get(bv, bv), "rows": rows})
-    view["takeaway"] = takeaway(stats, focal, opp, cond["wind"], cond["precip"], bins, cond.get("precip_prob"))
+    view["scope"] = scope
+    view["takeaway"] = takeaway(stats, focal, opp, cond["wind"], cond["precip"], bins, cond.get("precip_prob"), scope)
     view["on_air"] = plain.on_air_line(stats, focal, opp, cond["wind"], cond["precip"], bins, typicals, first_season,
-                                       cond.get("precip_prob"))
+                                       cond.get("precip_prob"), scope=scope)
     return view
 
 

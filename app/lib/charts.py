@@ -34,7 +34,8 @@ def condition_chart(df):
             tooltip=[alt.Tooltip("who:N", title="Team"), alt.Tooltip("metric:N", title="Stat"),
                      alt.Tooltip("in_words:N", title="Change"), alt.Tooltip("n:Q", title="Games"),
                      alt.Tooltip("label:N", title="Evidence")])
-        title = alt.TitleParams(part.metric.iloc[0], anchor="start", fontSize=13, fontWeight="bold")
+        title = alt.TitleParams(part["title"].iloc[0] if "title" in part else part.metric.iloc[0], anchor="start", fontSize=13,
+                               fontWeight="bold")
         out.append(alt.layer(zero, rng, dot).properties(height=alt.Step(26), width="container", title=title)
                    .configure_view(stroke=None))
     return out
