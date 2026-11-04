@@ -135,3 +135,24 @@ def test_copy_as_text_box_wraps():
     at = run_page("app/streamlit_app.py")
     box = [c for c in at.code if c.value.startswith(("Ohio State", "Oregon")) or "Exploratory history" in c.value]
     assert box and all(c.proto.wrap_lines for c in box)
+
+
+def test_season_table_forecast_line_carries_the_numbers():
+    fc = {"wind_bin": "calm", "precip_bin": "none", "temp_bin": "mild", "wind_sust": 9.206, "wind_gust": 13.8,
+          "precip_prob": 15.0, "temp_f": 55.3}
+    assert plain.forecast_brief(fc) == "Calm 9 mph (gusts 14) · Dry 15% · Mild 55°F"
+    assert plain.forecast_brief({**fc, "precip_bin": "uncertain", "precip_prob": 50.0, "wind_gust": None}) == \
+        "Calm 9 mph · Rain possible 50% · Mild 55°F"
+    at = run_page("app/streamlit_app.py")
+    table = at.dataframe[-1].value
+    upcoming = [w for w in table["Weather"] if w.startswith("forecast:")]
+    assert upcoming and all("mph" in w for w in upcoming)
+
+
+def test_copy_as_text_forecast_line_has_the_numbers_and_what_if_says_so():
+    fc = {"status": "ok", "wind_bin": "windy", "precip_bin": "none", "temp_bin": "mild", "wind_sust": 17.2, "wind_gust": 28.4,
+          "precip_prob": 10.0, "precip_amt": None, "temp_f": 51.0}
+    view = logic.build_gameday_view(windy_stats(), BINS, TEAMS, card_game(), fc, {}, first_season=2015)
+    assert "Forecast: Windy 17 mph (gusts 28) · Dry 10% · Mild 51°F" in logic.blurb(view)
+    what_if = logic.build_gameday_view(windy_stats(), BINS, TEAMS, card_game(), fc, {"wind": "calm"}, first_season=2015)
+    assert "Conditions (What-If): Calm" in logic.blurb(what_if) and "17 mph" not in logic.blurb(what_if)

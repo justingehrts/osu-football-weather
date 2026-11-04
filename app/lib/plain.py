@@ -341,6 +341,22 @@ def _distance_items(fc, bins):
     return out
 
 
+def forecast_brief(fc):
+    """The forecast in one short line for the season table: 'Calm 9 mph (gusts 14) · Dry 15% · Mild 55°F'.
+    Same rounding and names as the badges; a missing number is left out, never guessed."""
+    bits = []
+    s, g, pop, t = _num(fc, "wind_sust"), _num(fc, "wind_gust"), _num(fc, "precip_prob"), _num(fc, "temp_f")
+    if fc.get("wind_bin"):
+        bits.append(WIND_NAME.get(fc["wind_bin"], fc["wind_bin"]) + (f" {round(s)} mph" if s is not None else "")
+                    + (f" (gusts {round(g)})" if g is not None else ""))
+    if fc.get("precip_bin"):
+        name = "Rain possible" if fc["precip_bin"] == "uncertain" else PRECIP_NAME.get(fc["precip_bin"], fc["precip_bin"])
+        bits.append(name + (f" {round(pop)}%" if pop is not None else ""))
+    if fc.get("temp_bin"):
+        bits.append(fc["temp_bin"].replace("_", "/").title() + (f" {round(t)}°F" if t is not None else ""))
+    return " · ".join(bits)
+
+
 def bin_distances(fc, bins):
     """How close is each forecast number to the line where the card would change? -> (rows, borderline_notes)."""
     items = _distance_items(fc, bins)
