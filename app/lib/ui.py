@@ -100,7 +100,8 @@ def resources():
 
 def qp(name, default=None):
     v = st.query_params.get(name, default)
-    return v if v != "" else default
+    v = v if v != "" else default
+    return logic.legacy_wind(v) if name == "wind" else v      # shared links made before the rename still say ?wind=calm
 
 
 def set_qp(**kv):

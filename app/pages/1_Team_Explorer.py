@@ -22,7 +22,7 @@ labels = {t: (f"{t} (data not loaded yet)" if t in teams["deferred"] else t) for
 want = ui.qp("team", focal)
 team = st.selectbox("Team", options, index=options.index(want) if want in options else options.index(focal), format_func=labels.get)
 
-WIND = {"Any": None, "Calm": "calm", "Moderate wind": "moderate", "Windy": "windy"}
+WIND = {"Any": None, "Light wind": "light", "Moderate wind": "moderate", "Windy": "windy"}
 PRECIP = {"Any": None, "Dry": "none", "Light rain": "light", "Steady rain": "steady", "Any rain (light + steady)": "wet"}
 TEMP = {"Any": None, "Cold": "cold", "Mild": "mild", "Warm": "warm", "Hot": "hot", "Warm or hot": "warm_hot"}
 c1, c2, c3 = st.columns(3)
@@ -75,10 +75,10 @@ def show(bt, bv, title):
 
 shown = False
 if wind:
-    show("wind", wind, f"Wind: {logic.VS_NOT[wind]}")
+    show("wind", wind, f"Wind: {logic.vs_not('wind', wind)}")
     shown = True
 if precip:
-    show("precip", precip, f"Precipitation: {logic.VS_NOT[precip]}")
+    show("precip", precip, f"Precipitation: {logic.vs_not('precip', precip)}")
     shown = True
 if temp:
     with st.expander("Temperature (context only): results differ by team", expanded=True):

@@ -36,7 +36,7 @@ st.header("The bins")
 st.markdown(f"""
 | | Bin | Rule (from `config/bins.yaml`) |
 |---|---|---|
-| **Wind** | Calm | sustained ≤ {w['calm']['sustained_max']} mph and gusts ≤ {w['calm']['gust_max']} mph |
+| **Wind** | Light | sustained ≤ {w['light']['sustained_max']} mph and gusts ≤ {w['light']['gust_max']} mph |
 | | Moderate | in between |
 | | Windy | sustained ≥ {w['windy']['sustained_min']} mph **or** gusts ≥ {w['windy']['or_gust_min']} mph |
 | **Rain** | Dry | no measurable rain in the window |

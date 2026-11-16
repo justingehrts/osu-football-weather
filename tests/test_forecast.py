@@ -98,7 +98,7 @@ def test_open_meteo_summary():
 
 
 @pytest.mark.parametrize("sm,expect", [
-    (dict(wind_sust=6, wind_gust=10, precip_prob=5, precip_amt=0.0, temp_f=55), ("calm", "none", "mild", 0)),
+    (dict(wind_sust=6, wind_gust=10, precip_prob=5, precip_amt=0.0, temp_f=55), ("light", "none", "mild", 0)),
     (dict(wind_sust=18, wind_gust=30, precip_prob=90, precip_amt=0.02, temp_f=35), ("windy", "light", "cold", 0)),
     (dict(wind_sust=12, wind_gust=20, precip_prob=85, precip_amt=0.0, temp_f=72), ("moderate", "light", "warm", 0)),   # likely rain, ~0 amount
     (dict(wind_sust=12, wind_gust=20, precip_prob=90, precip_amt=0.30, temp_f=60), ("moderate", "steady", "mild", 0)),
@@ -178,7 +178,7 @@ def test_snapshots_are_never_overwritten_and_rapid_reruns_dedupe(tmp_path, monke
     fc.run(conn, fconn, session=FakeSession(nws=nws_grid(wind_kmh=40, gust_kmh=60)), now=NOW + timedelta(hours=6))
     rows = fconn.execute("SELECT * FROM forecast_snapshots ORDER BY snapshot_utc").fetchall()
     assert len(rows) == 2 and dict(rows[0]) == first                     # the earlier row is untouched
-    assert (rows[0]["wind_bin"], rows[1]["wind_bin"]) == ("calm", "windy")
+    assert (rows[0]["wind_bin"], rows[1]["wind_bin"]) == ("light", "windy")
 
 
 def test_unknown_kickoff_time_is_stated(tmp_path, monkeypatch):

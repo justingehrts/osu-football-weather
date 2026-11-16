@@ -18,7 +18,7 @@ st.caption("Every number in the app is built from real games. Pick a team and a 
 
 team = st.selectbox("Team", teams["loaded"], index=0)
 BT = {"Wind": "wind", "Precipitation": "precip", "Temperature": "temp"}
-VALS = {"wind": ["calm", "moderate", "windy"], "precip": ["none", "light", "steady", "wet"], "temp": ["cold", "mild", "warm", "hot", "warm_hot"]}
+VALS = {"wind": ["light", "moderate", "windy"], "precip": ["none", "light", "steady", "wet"], "temp": ["cold", "mild", "warm", "hot", "warm_hot"]}
 c1, c2 = st.columns(2)
 bt = BT[c1.selectbox("Condition type", list(BT))]
 bv = c2.selectbox("Bin", VALS[bt])

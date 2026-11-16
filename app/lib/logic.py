@@ -30,12 +30,24 @@ METRIC_INFO = {
     "pass_rate": ("Pass share of plays", "pct pts", 1, []),
     "plays": ("Plays per game", "plays", 1, []),
 }
-WIND_NAME = {"calm": "Calm", "moderate": "Moderate wind", "windy": "Windy"}
+# The lowest wind bin is "light" (it was "calm"). Rain also has a "light" bin, so names that depend on the bin are keyed by
+# DIMENSION too (wind vs. precip), never by the bin name alone.
+WIND_NAME = {"light": "Light wind", "moderate": "Moderate wind", "windy": "Windy"}
+LEGACY_WIND = {"calm": "light"}          # old forecast snapshots (append-only) and old shared links use the previous name
 PRECIP_NAME = {"none": "Dry", "light": "Light rain", "steady": "Steady rain", "wet": "Any rain (light + steady)",
                "uncertain": "Rain possible"}
-VS_NOT = {"calm": "calm vs. not calm", "moderate": "moderate wind vs. other winds", "windy": "windy vs. not windy",
-          "none": "dry vs. not dry", "light": "light rain vs. other games", "steady": "steady rain vs. other games",
-          "wet": "any rain vs. dry games"}
+VS_NOT = {"wind": {"light": "light wind vs. other winds", "moderate": "moderate wind vs. other winds", "windy": "windy vs. not windy"},
+          "precip": {"none": "dry vs. not dry", "light": "light rain vs. other games", "steady": "steady rain vs. other games",
+                     "wet": "any rain vs. dry games"}}
+
+
+def vs_not(dim, bv):
+    return VS_NOT.get(dim, {}).get(bv, bv)
+
+
+def legacy_wind(v):
+    """Map the old wind label ('calm') to the current one ('light'); anything else passes through."""
+    return LEGACY_WIND.get(v, v)
 
 
 # --------------------------------------------------------------------------- labels
@@ -168,7 +180,7 @@ def condition_badges(wind_bin, precip_bin, temp_bin, precip_prob=None, bins=None
     """['Windy', 'Light rain', 'Mild'] -- the plain-language chips."""
     out = []
     if wind_bin:
-        out.append(WIND_NAME.get(wind_bin, wind_bin))
+        out.append(WIND_NAME.get(legacy_wind(wind_bin), wind_bin))
     if precip_bin == "uncertain":
         out.append(f"Rain possible ({precip_prob:.0f}%)" if precip_prob is not None else "Rain possible")
     elif precip_bin:
@@ -182,7 +194,7 @@ def conditions_from(forecast, what_if):
     """Combine the stored forecast with the user's What-If choices (a choice, when set, wins)."""
     f = forecast or {}
     ok = f.get("status") == "ok"
-    wind = what_if.get("wind") or (f.get("wind_bin") if ok else None)
+    wind = legacy_wind(what_if.get("wind") or (f.get("wind_bin") if ok else None))
     precip = what_if.get("precip") or (f.get("precip_bin") if ok else None)
     temp = what_if.get("temp") or (f.get("temp_bin") if ok else None)
     overridden = any(what_if.get(k) for k in ("wind", "precip", "temp"))
@@ -208,8 +220,13 @@ NOUN = {"passing": "passing efficiency", "scoring": "scoring"}
 PRIMARY = {"passing": "pass_eff", "scoring": "points"}
 
 
-GAMES_WORD = {"calm": "calm", "moderate": "moderate-wind", "windy": "windy", "none": "dry", "light": "light-rain",
-              "steady": "steady-rain", "wet": "wet", "uncertain": "rain-possible"}
+GAMES_WORD = {"wind": {"light": "light-wind", "moderate": "moderate-wind", "windy": "windy"},
+              "precip": {"none": "dry", "light": "light-rain", "steady": "steady-rain", "wet": "wet", "uncertain": "rain-possible"}}
+
+
+def games_word(dim, bv):
+    """'windy' / 'light-wind' / 'light-rain': the bin as it reads in 'in ___ games'."""
+    return GAMES_WORD.get(dim, {}).get(bv, bv)
 VERB = {CLEAR: "shows a clear signal of", LEANS: "leans toward"}
 
 
@@ -247,7 +264,7 @@ def takeaway(stats, focal, opp, wind, precip, bins, precip_prob=None, scope="all
         pieces = []
         for (label, direction), group in _groupby(clauses):
             pieces.append(f"{VERB[label]} {direction} {' and '.join(group)}")
-        parts.append(f"{team} {' and '.join(pieces)} in {GAMES_WORD[bv]} games (n={min(c[3] for c in clauses)})")
+        parts.append(f"{team} {' and '.join(pieces)} in {games_word(dim, bv)} games (n={min(c[3] for c in clauses)})")
     toss_up = (f"rain is a toss-up ({precip_prob:.0f}% chance), so the dry and wet histories are both shown below"
                if uncertain and precip_prob is not None else
                "rain is a toss-up, so the dry and wet histories are both shown below" if uncertain else None)
@@ -260,7 +277,7 @@ def takeaway(stats, focal, opp, wind, precip, bins, precip_prob=None, scope="all
         return toss_up[0].upper() + toss_up[1:] + "."
     if not loaded or not shown:
         return "There is no loaded history for these teams and conditions yet, so there is nothing to say about wind or rain."
-    words = " or ".join(dict.fromkeys(f"{GAMES_WORD[b]} games" for _, b in shown))
+    words = " or ".join(dict.fromkeys(f"{games_word(d, b)} games" for d, b in shown))
     if any(stats.group_label(t, d, b, g)[0] == NONE for t in loaded for d, b in shown for g in ("passing", "scoring")):
         return (f"Neither team shows a clear effect in {words} (\"no clear effect\" is a real result, not a missing one)"
                 + (f"; {toss_up}" if toss_up else "") + ".")
@@ -364,7 +381,7 @@ def build_gameday_view(stats, bins, teams, game, forecast, what_if, side_by_side
                     r.extra.update(words=text, verdict=verdict, game_terms=plain.game_terms(r, typical),
                                    game_terms_short=plain.game_terms_short(r, typical), words_short=plain.words(r, short=True)[0])
                     rows.append(r)
-            view["sections"].append({"dim": dim, "bin": bv, "title": VS_NOT.get(bv, bv), "rows": rows})
+            view["sections"].append({"dim": dim, "bin": bv, "title": vs_not(dim, bv), "rows": rows})
     view["scope"] = scope
     if not cond["overridden"] and (forecast or {}).get("status") == "ok":
         view["forecast_brief"] = plain.forecast_brief(forecast)       # the copy-as-text forecast line gets the numbers too

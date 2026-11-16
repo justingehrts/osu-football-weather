@@ -6,7 +6,7 @@ For every upcoming game of a loaded team we look up the venue's coordinates and 
   2. Open-Meteo (a free global model service) as a fallback,
 then boil the hours between kickoff and kickoff + 3.5 h (`game_window_hours`) down to the same
 numbers the history uses -- strongest sustained wind, strongest gust, total rain, mean
-temperature -- and put them in the same bins (calm/moderate/windy, none/light/steady, cold/...)
+temperature -- and put them in the same bins (light/moderate/windy wind, none/light/steady rain, cold/...)
 defined in config/bins.yaml. That is what lets the app say "games like this one".
 
 Honesty rules:

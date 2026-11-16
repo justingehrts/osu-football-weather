@@ -2,6 +2,8 @@
 helpers. Offline; synthetic numbers except where noted."""
 import json
 
+import pytest
+
 import pandas as pd
 
 from lib import charts, logic, plain
@@ -182,8 +184,11 @@ def test_forecast_caption_survives_missing_values():
 def test_gameday_page_opens_a_game_whose_forecast_has_no_rain_amount():
     import os
     import sqlite3
-    gid = sqlite3.connect(os.environ["OSU_FORECAST_DB_PATH"]).execute(
-        "SELECT game_id FROM forecast_snapshots WHERE status='ok' AND precip_amt IS NULL LIMIT 1").fetchone()[0]
+    row = sqlite3.connect(os.environ["OSU_FORECAST_DB_PATH"]).execute(
+        "SELECT game_id FROM forecast_snapshots WHERE status='ok' AND precip_amt IS NULL LIMIT 1").fetchone()
+    if row is None:                    # the fixture is built from the games still to be played; late in the season too few remain
+        pytest.skip("fewer than three games left to play, so the fixture has no pull without a rain amount")
+    gid = row[0]
     at = run_page("app/streamlit_app.py")
     at.selectbox[0].set_value(gid).run()
     assert not at.exception

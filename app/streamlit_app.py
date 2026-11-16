@@ -14,7 +14,7 @@ res = ui.resources()
 bins, teams, stats, conn, fconn = res["bins"], res["teams"], res["stats"], res["conn"], res["fconn"]
 focal = teams["focal"]
 
-WIND_OPTS = {"Use the forecast": None, "Calm": "calm", "Moderate wind": "moderate", "Windy": "windy"}
+WIND_OPTS = {"Use the forecast": None, "Light wind": "light", "Moderate wind": "moderate", "Windy": "windy"}
 PRECIP_OPTS = {"Use the forecast": None, "Dry": "none", "Light rain": "light", "Steady rain": "steady",
                "Rain possible (show dry and wet)": "uncertain"}
 TEMP_OPTS = {"Use the forecast": None, "Cold": "cold", "Mild": "mild", "Warm": "warm", "Hot": "hot"}
@@ -151,7 +151,7 @@ def playcall_block(sec, prefix):
         for col, team in zip(cols, (view["focal"], view["opponent"])):
             with col:
                 ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in play_m], team, prefix,
-                              plain.GAMES_WORD.get(sec["bin"]))
+                              plain.games_word(sec["dim"], sec["bin"]))
         ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in play_m], pn)
 
 
@@ -164,7 +164,7 @@ for sec in [s for s in view["sections"] if s["dim"] == "wind"]:
     cols = st.columns(2)
     for col, team in zip(cols, (view["focal"], view["opponent"])):
         with col:
-            ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, "w", plain.GAMES_WORD.get(sec["bin"]))
+            ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, "w", plain.games_word(sec["dim"], sec["bin"]))
     ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in head_m], pn)
     playcall_block(sec, "wpc")
 
@@ -183,7 +183,7 @@ if psecs:
         for col, team in zip(cols, (view["focal"], view["opponent"])):
             with col:
                 ui.team_block([r for r in sec["rows"] if r.team == team and r.metric in head_m], team, f"p{sec['bin']}",
-                              plain.GAMES_WORD.get(sec["bin"]))
+                              plain.games_word(sec["dim"], sec["bin"]))
         ui.pooled_reference([r for r in sec["rows"] if r.team == logic.POOLED and r.metric in head_m], pn)
         playcall_block(sec, f"p{sec['bin']}pc")
     if any(s["bin"] == "steady" for s in psecs):

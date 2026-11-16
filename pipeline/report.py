@@ -22,7 +22,7 @@ METRICS = [("pass_eff", "Pass yds/att", 2, "higher = better"),
 KEY_METRICS = ["pass_eff", "points", "points_allowed", "ppa_off"]
 DEC = {k: d for k, _, d, _ in METRICS}
 LABEL = {k: l for k, l, _, _ in METRICS}
-ORDER = {"wind": ["calm", "moderate", "windy"],
+ORDER = {"wind": ["light", "moderate", "windy"],
          "precip": ["none", "light", "steady", "wet"],
          "temp": ["cold", "mild", "warm", "hot", "warm_hot"]}
 TIER_SHORT = {"clear": "**CLEAR**", "leans": "leans", "no_clear_effect": "none", "insufficient": "n/a",
@@ -248,7 +248,7 @@ def pooled_section(sp, tiers, bins):
            "The same numbers are shown on two yardsticks; **steady** rain is kept as its own bin next to the merged **wet** bin.", ""]
     for basis in (AVG, REST):
         out += [f"### {BASIS_TITLE[basis]}", ""]
-        for bt, vals in (("wind", ["calm", "moderate", "windy"]), ("precip", ["none", "light", "steady", "wet"]),
+        for bt, vals in (("wind", ["light", "moderate", "windy"]), ("precip", ["none", "light", "steady", "wet"]),
                          ("temp", ["cold", "mild", "warm_hot"])):
             out += [f"**{bt}** (pooled across {k} teams)", "",
                     "| Bin | Metric | n | Raw Δ [90%] | Adj Δ [90%] | Controlled Δ [90%] |", "|---|---|---|---|---|---|"]
