@@ -61,8 +61,18 @@ def connect(db_path=DB_PATH):
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
                 if col == "first_seen":     # venues that existed before this column were loaded earlier
                     conn.execute("UPDATE venues SET first_seen = '2026-10-27' WHERE first_seen IS NULL")
+    rename_wind_bin(conn, "calm", "light")
     conn.commit()      # without this the in-place migration above was silently rolled back on close
     return conn
+
+
+def rename_wind_bin(conn, old, new):
+    """The lowest wind bin was renamed calm -> light. Stored labels in the history database follow (idempotent: a no-op
+    once done). Forecast snapshots are append-only and are NOT rewritten; the app reads their old label as the new one."""
+    conn.execute("UPDATE weather_obs SET wind_bin = ? WHERE wind_bin = ?", (new, old))
+    for table in ("team_splits", "team_splits_prev", "team_tiers"):
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+            conn.execute(f"UPDATE {table} SET bin_value = ? WHERE bin_type = 'wind' AND bin_value = ?", (new, old))
 
 
 def http_session():

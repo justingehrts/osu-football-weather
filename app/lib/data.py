@@ -49,17 +49,27 @@ def next_game(sched, now=None):
     return (upcoming if not upcoming.empty else sched).iloc[0] if not sched.empty else None
 
 
+LEGACY_WIND = {"calm": "light"}      # the lowest wind bin was renamed; old snapshot rows (append-only) keep the old label
+
+
 def latest_forecast(fconn, game_id):
     if fconn is None:
         return None
     r = fconn.execute("SELECT * FROM forecast_snapshots WHERE game_id=? ORDER BY snapshot_utc DESC LIMIT 1", (game_id,)).fetchone()
-    return dict(r) if r else None
+    if not r:
+        return None
+    r = dict(r)
+    r["wind_bin"] = LEGACY_WIND.get(r.get("wind_bin"), r.get("wind_bin"))        # read-only translation; the stored row is untouched
+    return r
 
 
 def forecast_history(fconn, game_id):
     if fconn is None:
         return pd.DataFrame()
-    return pd.read_sql_query("SELECT * FROM forecast_snapshots WHERE game_id=? ORDER BY snapshot_utc", fconn, params=(game_id,))
+    h = pd.read_sql_query("SELECT * FROM forecast_snapshots WHERE game_id=? ORDER BY snapshot_utc", fconn, params=(game_id,))
+    if "wind_bin" in h:
+        h["wind_bin"] = h["wind_bin"].replace(LEGACY_WIND)
+    return h
 
 
 def bin_members(bins, bin_type, bin_value):

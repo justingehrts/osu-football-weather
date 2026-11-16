@@ -91,7 +91,7 @@ def test_playcalling_can_never_be_a_clear_signal_in_the_real_data():
     stats = ui.resources()["stats"]
     seen = 0
     for team in list(TEAMS["loaded"]) + [logic.POOLED]:
-        for bt, bv in (("wind", "windy"), ("wind", "calm"), ("precip", "wet"), ("precip", "steady")):
+        for bt, bv in (("wind", "windy"), ("wind", "light"), ("precip", "wet"), ("precip", "steady")):
             r = stats.result(team, bt, bv, "pass_rate")
             seen += r.status == "ok"
             assert r.label != logic.CLEAR            # one stat has no partner to agree with it: at most Leans

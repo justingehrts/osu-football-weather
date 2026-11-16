@@ -104,7 +104,7 @@ def test_one_teams_findings_merge_into_one_clause_with_each_labels_own_verb():
 
 def test_a_toss_up_rain_chance_makes_no_rain_claim_and_says_so():
     st = windy_stats()
-    t = logic.takeaway(st, "Ohio State", "USC", "calm", "uncertain", BINS, precip_prob=67)
+    t = logic.takeaway(st, "Ohio State", "USC", "light", "uncertain", BINS, precip_prob=67)
     assert "rain is a toss-up (67% chance)" in t and "dry games" not in t and "wet games" not in t
     only_rain = logic.takeaway(st, "Ohio State", "USC", None, "uncertain", BINS, precip_prob=50)
     assert only_rain.startswith("Rain is a toss-up (50% chance)")
@@ -158,7 +158,7 @@ def test_view_for_each_forecast_situation():
 
 def test_what_if_overrides_the_forecast_and_can_fill_a_missing_one():
     st = windy_stats()
-    ok = {"status": "ok", "wind_bin": "calm", "precip_bin": "none", "temp_bin": "mild"}
+    ok = {"status": "ok", "wind_bin": "light", "precip_bin": "none", "temp_bin": "mild"}
     v = logic.build_gameday_view(st, BINS, TEAMS, card_game(), ok, {"wind": "windy"})
     assert v["badges"][0] == "Windy" and v["conditions"]["overridden"] and v["forecast_status"] == "what_if"
     far = logic.build_gameday_view(st, BINS, TEAMS, card_game(), {"status": "beyond_horizon"}, {"wind": "windy"})
@@ -227,8 +227,8 @@ def test_gameday_card_what_if_changes_the_takeaway():
     at = run_page("app/streamlit_app.py")
     before = takeaway_of(at)
     sel = [s for s in at.selectbox if s.label == "Wind"][0]
-    sel.set_value("Calm").run()
-    assert not at.exception and takeaway_of(at) != before and "calm" in takeaway_of(at).lower()
+    sel.set_value("Light wind").run()
+    assert not at.exception and takeaway_of(at) != before and "light-wind" in takeaway_of(at).lower()
 
 
 def AppTest_game_ids():
@@ -241,9 +241,11 @@ def test_gameday_card_game_beyond_horizon_says_so():
     at = run_page("app/streamlit_app.py")
     # Which upcoming game the fixture makes "beyond the horizon" depends on today's date (the fixture is built from the
     # games still to be played), so ask the fixture itself rather than naming an opponent.
-    beyond = sqlite3.connect(os.environ["OSU_FORECAST_DB_PATH"]).execute(
-        "SELECT game_id FROM forecast_snapshots WHERE status = 'beyond_horizon' LIMIT 1").fetchone()[0]
-    at.selectbox[0].set_value(beyond).run()
+    row = sqlite3.connect(os.environ["OSU_FORECAST_DB_PATH"]).execute(
+        "SELECT game_id FROM forecast_snapshots WHERE status = 'beyond_horizon' LIMIT 1").fetchone()
+    if row is None:
+        pytest.skip("fewer than two games left to play, so the fixture has no beyond-the-horizon game")
+    at.selectbox[0].set_value(row[0]).run()
     assert not at.exception
     assert "beyond the forecast horizon" in at.info[0].value
 
@@ -342,7 +344,7 @@ def test_plain_averages_for_a_thin_block_are_just_arithmetic():
     db = connect(":memory:")
     db.execute("INSERT INTO venues(venue_id,name,dome) VALUES (1,'V',0)")
     rows = [("windy", 10, 100, 20, 1), ("windy", 20, 120, 20, 2), ("windy", 30, 140, 20, 3),
-            ("calm", 40, 200, 20, 4), ("calm", 40, 200, 20, 5), ("calm", 40, 200, 20, 6), ("calm", 40, 200, 20, 7)]
+            ("light", 40, 200, 20, 4), ("light", 40, 200, 20, 5), ("light", 40, 200, 20, 6), ("light", 40, 200, 20, 7)]
     for wb, pts, yds, att, gid in rows:
         db.execute("INSERT INTO games(game_id,season,week,season_type,kickoff_utc,completed,home_team,away_team,venue_id,home_points,away_points)"
                    " VALUES (?,2025,?, 'regular','2025-10-01T17:00:00Z',1,'A','B',1,?,0)", (gid, gid, pts))
@@ -359,7 +361,7 @@ def test_plain_averages_for_a_thin_block_are_just_arithmetic():
 def _page_with_a_thin_block():
     """A Gameday Card state that has at least one 'Not enough games' block with some games behind it."""
     from pathlib import Path
-    for wind, precip in (("Windy", "Steady rain"), ("Windy", "Light rain"), ("Calm", "Steady rain"), ("Moderate wind", "Steady rain")):
+    for wind, precip in (("Windy", "Steady rain"), ("Windy", "Light rain"), ("Light wind", "Steady rain"), ("Moderate wind", "Steady rain")):
         at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app/streamlit_app.py"), default_timeout=90).run()
         [s for s in at.selectbox if s.label == "Wind"][0].select(wind)
         [s for s in at.selectbox if s.label == "Precipitation"][0].select(precip)

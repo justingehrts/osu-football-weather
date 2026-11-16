@@ -16,13 +16,13 @@ def view_for(stats, typicals=None, **game):
 
 
 # --------------------------------------------------------------------------- bug: borderline used unrounded numbers
-def test_borderline_rounds_like_the_pipeline_so_9_2_mph_is_the_top_of_calm():
+def test_borderline_rounds_like_the_pipeline_so_9_2_mph_is_the_top_of_light_wind():
     fc = {"status": "ok", "wind_sust": 9.206, "wind_gust": 13.809, "precip_prob": 15.0, "precip_amt": None, "temp_f": 55.3}
     rows, notes = plain.bin_distances(fc, BINS)
     wind = {r["Forecast"]: r for r in rows}["Sustained wind"]
-    assert wind["Value"] == "9 mph" and wind["Where it sits"] == "calm is up to 9 mph (0 under)" and wind["Borderline"] == "yes"
-    assert notes == ["9 mph sustained is the top of the calm range (calm runs up to 9 mph; 10 to 14 is moderate)"]
-    assert not any("between calm and windy" in r["Where it sits"] for r in rows)
+    assert wind["Value"] == "9 mph" and wind["Where it sits"] == "light wind is up to 9 mph (0 under)" and wind["Borderline"] == "yes"
+    assert notes == ["9 mph sustained is the top of the light-wind range (light runs up to 9 mph; 10 to 14 is moderate)"]
+    assert not any("between light and windy" in r["Where it sits"] for r in rows)
 
 
 def test_borderline_notes_say_which_line_and_how_far():
@@ -36,9 +36,9 @@ def test_borderline_notes_say_which_line_and_how_far():
 # --------------------------------------------------------------------------- 5: badges carry the numbers
 def test_badges_carry_the_forecast_numbers_and_a_borderline_tag():
     fc = {"status": "ok", "wind_sust": 9.206, "wind_gust": 13.809, "precip_prob": 15.0, "precip_amt": None, "temp_f": 55.3}
-    cond = {"wind": "calm", "precip": "none", "temp": "mild", "overridden": False}
+    cond = {"wind": "light", "precip": "none", "temp": "mild", "overridden": False}
     parts = plain.badge_parts(cond, fc, BINS)
-    assert parts[0] == {"name": "Calm", "detail": "9 mph · gusts 14", "tag": "top of calm", "muted": False}
+    assert parts[0] == {"name": "Light wind", "detail": "9 mph · gusts 14", "tag": "top of light", "muted": False}
     assert parts[1] == {"name": "Dry", "detail": "15% chance of rain", "tag": None, "muted": False}
     assert parts[2] == {"name": "Mild", "detail": "55°F", "tag": None, "muted": True}           # temperature: context only
     what_if = plain.badge_parts({**cond, "overridden": True}, fc, BINS)
@@ -138,11 +138,11 @@ def test_copy_as_text_box_wraps():
 
 
 def test_season_table_forecast_line_carries_the_numbers():
-    fc = {"wind_bin": "calm", "precip_bin": "none", "temp_bin": "mild", "wind_sust": 9.206, "wind_gust": 13.8,
+    fc = {"wind_bin": "light", "precip_bin": "none", "temp_bin": "mild", "wind_sust": 9.206, "wind_gust": 13.8,
           "precip_prob": 15.0, "temp_f": 55.3}
-    assert plain.forecast_brief(fc) == "Calm 9 mph (gusts 14) · Dry 15% · Mild 55°F"
+    assert plain.forecast_brief(fc) == "Light wind 9 mph (gusts 14) · Dry 15% · Mild 55°F"
     assert plain.forecast_brief({**fc, "precip_bin": "uncertain", "precip_prob": 50.0, "wind_gust": None}) == \
-        "Calm 9 mph · Rain possible 50% · Mild 55°F"
+        "Light wind 9 mph · Rain possible 50% · Mild 55°F"
     at = run_page("app/streamlit_app.py")
     table = at.dataframe[-1].value
     upcoming = [w for w in table["Weather"] if w.startswith("forecast:")]
@@ -154,5 +154,5 @@ def test_copy_as_text_forecast_line_has_the_numbers_and_what_if_says_so():
           "precip_prob": 10.0, "precip_amt": None, "temp_f": 51.0}
     view = logic.build_gameday_view(windy_stats(), BINS, TEAMS, card_game(), fc, {}, first_season=2015)
     assert "Forecast: Windy 17 mph (gusts 28) · Dry 10% · Mild 51°F" in logic.blurb(view)
-    what_if = logic.build_gameday_view(windy_stats(), BINS, TEAMS, card_game(), fc, {"wind": "calm"}, first_season=2015)
-    assert "Conditions (What-If): Calm" in logic.blurb(what_if) and "17 mph" not in logic.blurb(what_if)
+    what_if = logic.build_gameday_view(windy_stats(), BINS, TEAMS, card_game(), fc, {"wind": "light"}, first_season=2015)
+    assert "Conditions (What-If): Light wind" in logic.blurb(what_if) and "17 mph" not in logic.blurb(what_if)

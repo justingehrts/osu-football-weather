@@ -14,9 +14,9 @@ def classify_wind(sust_mph, gust_mph, cfg):
     g = round(gust_mph) if gust_mph is not None else s  # no gust reported => no gusts
     if s >= w["windy"]["sustained_min"] or g >= w["windy"]["or_gust_min"]:
         return "windy"
-    if s <= w["calm"]["sustained_max"] and g <= w["calm"]["gust_max"]:
-        return "calm"
-    return "moderate"  # everything between calm and windy
+    if s <= w["light"]["sustained_max"] and g <= w["light"]["gust_max"]:
+        return "light"
+    return "moderate"  # everything between light and windy
 
 
 def classify_precip(total_in, cfg):

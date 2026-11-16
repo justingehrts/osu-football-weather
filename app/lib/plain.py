@@ -15,7 +15,7 @@ import math
 
 import pandas as pd
 
-from .logic import CLEAR, FEW, LEANS, METRIC_INFO, NONE, POOLED, PRECIP_NAME, RANK, WIND_NAME
+from .logic import CLEAR, FEW, LEANS, METRIC_INFO, NONE, POOLED, PRECIP_NAME, RANK, WIND_NAME, legacy_wind
 
 # +1: higher is better for that team; -1: lower is better
 # 0 = playcalling: neither better nor worse, so there is no good direction (and the chart is not flipped)
@@ -33,8 +33,12 @@ UNIT_WORDS = {"pass_eff": "yards per pass", "points": "points a game", "points_a
               "ppa_off": "expected points per play", "rush_ypc": "yards per carry", "turnovers": "turnovers a game",
               "pass_rate": "passes per 100 plays", "plays": "plays a game"}
 NEUTRAL_AXIS = {"pass_rate": "◄ ran more  ·  threw more ►", "plays": "◄ fewer plays  ·  more plays ►"}
-GAMES_WORD = {"calm": "calm", "moderate": "moderate-wind", "windy": "windy", "none": "dry", "light": "light-rain",
-              "steady": "steady-rain", "wet": "rainy"}
+GAMES_WORD = {"wind": {"light": "light-wind", "moderate": "moderate-wind", "windy": "windy"},
+              "precip": {"none": "dry", "light": "light-rain", "steady": "steady-rain", "wet": "rainy"}}
+
+
+def games_word(dim, bv):
+    return GAMES_WORD.get(dim, {}).get(bv, bv)
 
 
 def _shows(r):
@@ -171,7 +175,7 @@ def _playcall_sentence(stats, focal, opp, wind, precip, bins, scope="all"):
             r = stats.result(team, dim, bv, "pass_rate", scope)
             if r.label == LEANS and _shows(r) and abs(r.value) >= 0.5:
                 up = r.value > 0
-                return (f"{team} has tended to throw {'more' if up else 'less'} in {GAMES_WORD[bv]} games: about {abs(r.value):.0f} "
+                return (f"{team} has tended to throw {'more' if up else 'less'} in {games_word(dim, bv)} games: about {abs(r.value):.0f} "
                         f"{'more' if up else 'fewer'} passes per 100 plays, {_reason(LEANS, r.n, bins)}.")
     return None
 
@@ -201,7 +205,7 @@ def on_air_line(stats, focal, opp, wind, precip, bins, typicals, first_season, p
     since = f" since {first_season}" if first_season else ""
     out = []
     for _, _, _, team, dim, bv, found in cands[:max_items]:
-        cond = f"{GAMES_WORD[bv]} games"
+        cond = f"{games_word(dim, bv)} games"
         typ = (typicals or {}).get((team, dim, bv)) or {}
         p, s = found.get("passing"), found.get("scoring")
         same = p and s and p[0] == s[0] and (p[2].value > 0) == (s[2].value > 0)
@@ -270,12 +274,12 @@ def _num(fc, key):
 def _distance_items(fc, bins):
     """Each forecast number vs. the nearest line that would change the card. Values are rounded EXACTLY as the pipeline
     rounds them before binning (whole mph, whole degrees, rain to 0.01 in.), so a 9.2 mph forecast is "9 mph, the top of
-    calm" here too, never "between calm and windy" next to a Calm badge."""
+    light" here too, never "between light and windy" next to a Light wind badge."""
     if not fc or fc.get("status") != "ok":
         return []
     w, b = bins["wind"], bins["forecast"]["borderline"]
-    calm_s, windy_s = w["calm"]["sustained_max"], w["windy"]["sustained_min"]
-    calm_g, windy_g = w["calm"]["gust_max"], w["windy"]["or_gust_min"]
+    light_s, windy_s = w["light"]["sustained_max"], w["windy"]["sustained_min"]
+    light_g, windy_g = w["light"]["gust_max"], w["windy"]["or_gust_min"]
     out = []
 
     def add(dim, what, shown, where, distance, margin, tag=None, note=None):
@@ -289,36 +293,36 @@ def _distance_items(fc, bins):
         if s >= windy_s:
             add("wind", "Sustained wind", f"{s} mph", f"windy starts at {windy_s} mph ({s - windy_s} over)", s - windy_s, b["wind_mph"],
                 "just windy", f"{s} mph sustained is just over the windy line ({windy_s} mph)")
-        elif s <= calm_s:
-            d = calm_s - s
-            add("wind", "Sustained wind", f"{s} mph", f"calm is up to {calm_s} mph ({d} under)", d, b["wind_mph"], "top of calm",
-                f"{s} mph sustained is the top of the calm range (calm runs up to {calm_s} mph; {calm_s + 1} to {windy_s - 1} is moderate)"
-                if d == 0 else f"{s} mph sustained is {d} mph under the moderate-wind line (calm runs up to {calm_s} mph)")
-        elif windy_s - s <= s - calm_s:
+        elif s <= light_s:
+            d = light_s - s
+            add("wind", "Sustained wind", f"{s} mph", f"light wind is up to {light_s} mph ({d} under)", d, b["wind_mph"], "top of light",
+                f"{s} mph sustained is the top of the light-wind range (light runs up to {light_s} mph; {light_s + 1} to {windy_s - 1} is moderate)"
+                if d == 0 else f"{s} mph sustained is {d} mph under the moderate-wind line (light wind runs up to {light_s} mph)")
+        elif windy_s - s <= s - light_s:
             d = windy_s - s
             add("wind", "Sustained wind", f"{s} mph", f"moderate; windy starts at {windy_s} mph ({d} under)", d, b["wind_mph"],
                 "near windy", f"{s} mph sustained is moderate, {d} mph below the windy line ({windy_s} mph)")
         else:
-            d = s - calm_s
-            add("wind", "Sustained wind", f"{s} mph", f"moderate; calm is up to {calm_s} mph ({d} over)", d, b["wind_mph"],
-                "near calm", f"{s} mph sustained is moderate, {d} mph above calm (calm runs up to {calm_s} mph)")
+            d = s - light_s
+            add("wind", "Sustained wind", f"{s} mph", f"moderate; light wind is up to {light_s} mph ({d} over)", d, b["wind_mph"],
+                "near light", f"{s} mph sustained is moderate, {d} mph above light wind (light runs up to {light_s} mph)")
     g = _num(fc, "wind_gust")
     if g is not None:
         g = round(g)
         if g >= windy_g:
             add("wind", "Gusts", f"{g} mph", f"windy starts at {windy_g} mph gusts ({g - windy_g} over)", g - windy_g, b["gust_mph"],
                 "gusts just windy", f"gusts of {g} mph are just over the windy line ({windy_g} mph)")
-        elif g <= calm_g:
-            add("wind", "Gusts", f"{g} mph", f"calm allows gusts up to {calm_g} mph ({calm_g - g} under)", calm_g - g, b["gust_mph"],
-                "gusts near calm limit", f"gusts of {g} mph are near the top of calm (calm allows gusts up to {calm_g} mph)")
-        elif windy_g - g <= g - calm_g:
+        elif g <= light_g:
+            add("wind", "Gusts", f"{g} mph", f"light wind allows gusts up to {light_g} mph ({light_g - g} under)", light_g - g, b["gust_mph"],
+                "gusts near light limit", f"gusts of {g} mph are near the top of light wind (light allows gusts up to {light_g} mph)")
+        elif windy_g - g <= g - light_g:
             d = windy_g - g
             add("wind", "Gusts", f"{g} mph", f"moderate; windy starts at {windy_g} mph gusts ({d} under)", d, b["gust_mph"],
                 "gusts near windy", f"gusts of {g} mph are {d} mph below the windy line ({windy_g} mph)")
         else:
-            d = g - calm_g
-            add("wind", "Gusts", f"{g} mph", f"moderate; calm allows gusts up to {calm_g} mph ({d} over)", d, b["gust_mph"],
-                "gusts near calm", f"gusts of {g} mph are {d} mph above calm's limit ({calm_g} mph)")
+            d = g - light_g
+            add("wind", "Gusts", f"{g} mph", f"moderate; light wind allows gusts up to {light_g} mph ({d} over)", d, b["gust_mph"],
+                "gusts near light", f"gusts of {g} mph are {d} mph above light wind's limit ({light_g} mph)")
     lo, hi = bins["forecast"]["precip_prob_middle"]
     pop = _num(fc, "precip_prob")
     if pop is not None:
@@ -342,12 +346,12 @@ def _distance_items(fc, bins):
 
 
 def forecast_brief(fc):
-    """The forecast in one short line for the season table: 'Calm 9 mph (gusts 14) · Dry 15% · Mild 55°F'.
+    """The forecast in one short line for the season table: 'Light wind 9 mph (gusts 14) · Dry 15% · Mild 55°F'.
     Same rounding and names as the badges; a missing number is left out, never guessed."""
     bits = []
     s, g, pop, t = _num(fc, "wind_sust"), _num(fc, "wind_gust"), _num(fc, "precip_prob"), _num(fc, "temp_f")
     if fc.get("wind_bin"):
-        bits.append(WIND_NAME.get(fc["wind_bin"], fc["wind_bin"]) + (f" {round(s)} mph" if s is not None else "")
+        bits.append(WIND_NAME.get(legacy_wind(fc["wind_bin"]), fc["wind_bin"]) + (f" {round(s)} mph" if s is not None else "")
                     + (f" (gusts {round(g)})" if g is not None else ""))
     if fc.get("precip_bin"):
         name = "Rain possible" if fc["precip_bin"] == "uncertain" else PRECIP_NAME.get(fc["precip_bin"], fc["precip_bin"])
@@ -457,7 +461,7 @@ def playcall_summary(sec, focal, opp):
             k = round(abs(r.value))
             out.append(f"{team} has tended to run about {k} {'more' if r.value > 0 else 'fewer'} {'play' if k == 1 else 'plays'} "
                        f"a game (Leans, {r.n} games).")
-    return " ".join(out) or f"No clear playcalling change for either team in {GAMES_WORD.get(sec['bin'], sec['bin'])} games."
+    return " ".join(out) or f"No clear playcalling change for either team in {games_word(sec['dim'], sec['bin'])} games."
 
 
 def playcall_glance(view):
@@ -467,7 +471,7 @@ def playcall_glance(view):
         for team in (view["focal"], view["opponent"]):
             r = next((x for x in sec["rows"] if x.team == team and x.metric == "pass_rate"), None)
             if r is not None and r.label == LEANS and _shows(r) and abs(r.value) >= 0.5:
-                groups.setdefault((GAMES_WORD.get(sec["bin"], sec["bin"]), r.value > 0), []).append(team)
+                groups.setdefault((games_word(sec["dim"], sec["bin"]), r.value > 0), []).append(team)
     if not groups:
         return None
     bits = [f"{' and '.join(teams)} {'tends' if len(teams) == 1 else 'tend'} to throw {'more' if up else 'less'} in {cond} games"

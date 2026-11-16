@@ -1,6 +1,6 @@
 # Tune freely; re-run the pipeline after changes.
 wind:        # applies to the game window, mph
-  calm:     {sustained_max: 9,  gust_max: 19}
+  light:    {sustained_max: 9,  gust_max: 19}
   moderate: {sustained_max: 14, gust_max: 24}
   windy:    {sustained_min: 15, or_gust_min: 25}
 precip:

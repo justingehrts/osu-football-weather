@@ -94,6 +94,11 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
   never mix the two on one card.
 - Always compare the two teams LEFT to RIGHT (focal team left, opponent right), for every scenario; when there is more
   than one scenario (e.g. dry and wet), stack the scenarios top to bottom, each with its own left-right comparison.
+- Wind bins are **light** / moderate / windy (the lowest bin was "calm" before; `bins.yaml` key `wind.light`, shown as "Light wind").
+  Rain ALSO has a "light" bin, so any name or lookup that depends on a bin is keyed by dimension (wind vs. precip), never by
+  the bin name alone (`logic.games_word`, `logic.vs_not`). Old forecast snapshots keep their stored "calm" label (they are
+  append-only); the app reads it as "light" (`data.LEGACY_WIND`), as it does an old `?wind=calm` link. `pipeline.common.connect`
+  relabels the history database in place (idempotent).
 - Lead with wind. Each team's own result comes first; the pooled line is a reference labelled "all N loaded teams".
 - Evidence labels (plain language): **Clear signal**, **Leans**, **No clear effect**, **Not enough games**.
   "Clear signal" requires BOTH the pipeline's `clear` tier AND n >= `app.clear_signal_min_n` (30, in bins.yaml);
@@ -139,7 +144,7 @@ config/bins.yaml, teams.yaml, opponents.yaml ───────────�
     (`pipeline/venue_tz.py`, `timezonefinder`, no web calls); a venue with no zone falls back to ET. Dates (game picker, season
     table, evidence lists) are the stadium's local date. Times a forecast was PULLED stay in ET. Helpers: `app/lib/timefmt.py`.
   - The hour-by-hour forecast is two charts, wind/gusts on top and chance of rain below, so a high chance of rain can't hide the wind.
-  - Gameday Card order and salience (upcoming games): condition badges carry the forecast numbers ("Calm · 9 mph · gusts 14",
+  - Gameday Card order and salience (upcoming games): condition badges carry the forecast numbers ("Light wind · 9 mph · gusts 14",
     temperature muted "context only") with a borderline tag; a one-line specific borderline note; then the **At a glance**
     board (conditions down, focal team left / opponent right, each cell = label + a few words + n, linking to its section;
     one playcalling line under it); then ONE summary: the on-air line in large type with the written takeaway small under it.

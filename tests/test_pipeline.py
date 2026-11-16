@@ -14,7 +14,7 @@ BINS = load_bins()
 
 
 @pytest.mark.parametrize("s,g,expect", [
-    (5, None, "calm"), (9.4, 19, "calm"), (10, 10, "moderate"), (14.6, 14.6, "windy"),
+    (5, None, "light"), (9.4, 19, "light"), (10, 10, "moderate"), (14.6, 14.6, "windy"),
     (8, 25, "windy"), (8, 24, "moderate"), (15, 15, "windy"),
 ])
 def test_wind(s, g, expect):
@@ -90,7 +90,7 @@ def _fake_db():
                          (gid, season, i, "regular", f"{season}-09-0{i + 1}T17:00:00Z", 2 if i == 5 else 1))
             conn.execute("INSERT INTO weather_obs VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)",
                          (gid, "CMH", "s", "e", 50, 20 if windy else 3, 25 if windy else 3, 0.0, 0, 10, 5,
-                          "windy" if windy else "calm", "none", "mild"))
+                          "windy" if windy else "light", "none", "mild"))
             conn.execute("INSERT INTO team_games VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL)",
                          (gid, "A", "B", "home", 20 if windy else 40, 60, 20, 100 if windy else 200,
                           30, 150, 1 if windy else 0))
@@ -109,7 +109,7 @@ def test_splits_baseline_n_and_dome_exclusion():
     g = lambda scope, bv, m: t[(t.scope == scope) & (t.bin_value == bv) & (t.metric == m)].iloc[0]
     # 18 games, 3 are dome (i==5) -> 15 usable; windy = 9 (i<3 each season)
     assert g("all", "windy", "points").n == 9 and g("all", "windy", "points").confidence == "thin"
-    assert g("all", "calm", "points").n == 6
+    assert g("all", "light", "points").n == 6
     assert g("all", "windy", "points").baseline == pytest.approx((9 * 20 + 6 * 40) / 15)
     assert g("all", "windy", "points").delta == pytest.approx(20 - (9 * 20 + 6 * 40) / 15)
     assert g("ex2020", "windy", "points").n == 6     # 2020 filter drops 3 windy games
@@ -119,7 +119,7 @@ def test_splits_baseline_n_and_dome_exclusion():
 
 
 def test_merged_bins_from_config():
-    df = pd.DataFrame({"wind_bin": ["calm"] * 4, "precip_bin": ["none", "light", "steady", "light"],
+    df = pd.DataFrame({"wind_bin": ["light"] * 4, "precip_bin": ["none", "light", "steady", "light"],
                        "temp_bin": ["mild", "warm", "hot", "cold"]})
     m = compute_splits.bin_masks(df, BINS)
     assert m[("precip", "wet")].tolist() == [False, True, True, True]       # light + steady
@@ -161,7 +161,7 @@ def _world(true_effect, seed=0, n=240, team="A"):
     y = 28 + 1.2 * opp - 2.5 * (month == 11) + 3 * home + true_effect * warm + rng.normal(0, 4, n)
     df = pd.DataFrame(dict(team=team, season=2019, game_id=np.arange(n) + (0 if team == "A" else 10_000),
                            kickoff_utc=[f"2019-{m:02d}-14T20:00:00Z" for m in month],
-                           home_away=np.where(home, "home", "away"), neutral_site=0, wind_bin="calm",
+                           home_away=np.where(home, "home", "away"), neutral_site=0, wind_bin="light",
                            precip_bin="none", temp_bin=np.where(warm, "warm", "mild"), points=y,
                            opp_sp_def=opp, opp_sp_off=opp))
     for c in ("pass_yds", "pass_att", "rush_yds", "rush_att", "turnovers", "ppa_off", "points_allowed"):
