@@ -1,6 +1,6 @@
 {
  "month": "2026-11",
- "calls": 20,
+ "calls": 25,
  "log": [
   [
    "2026-11-01T14:16:02+00:00",
@@ -73,7 +73,23 @@
   [
    "2026-11-16T16:59:21+00:00",
    "/games {'year': 2026, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-11-22T15:16:14+00:00",
+   "/games {'year': 2026, 'seasonType': 'regular'}"
+  ],
+  [
+   "2026-11-22T15:16:15+00:00",
+   "/games/teams {'year': 2026, 'seasonType': 'regular', 'week': 12}"
+  ],
+  [
+   "2026-11-22T15:16:15+00:00",
+   "/ppa/games {'year': 2026, 'seasonType': 'regular', 'excludeGarbageTime': 'false', 'week': 12}"
+  ],
+  [
+   "2026-11-22T15:16:16+00:00",
+   "/ratings/sp {'year': 2026}"
   ]
  ],
- "synced_with_cfbd": "2026-11-16T16:59:21+00:00"
+ "synced_with_cfbd": "2026-11-22T15:16:14+00:00"
 }

@@ -1,5 +1,5 @@
 {
- "checked_utc": "2026-11-15T14:45:09+00:00",
+ "checked_utc": "2026-11-22T15:16:39+00:00",
  "new_team_games": 6,
  "calls": 4,
  "by_endpoint": {
@@ -8,5 +8,5 @@
   "/ppa/games": 1,
   "/ratings/sp": 1
  },
- "month_total": 18
+ "month_total": 25
 }
